@@ -52,7 +52,7 @@ usage() {
     echo "  --clients <count>       要產生的客戶端數量"
     echo "  --client-phantun-port <port> 客戶端 Phantun 監聽的本地 UDP 埠"
     echo "  --add-clients           僅執行新增客戶端的步驟"
-    echo "  --add-client-service    僅執行新增可選的 phantun-client 服務的步驟"
+    echo "  --set-peer              僅執行新增可選的 WireGuard peer 和 phantun-client 服務的步驟"
     echo "  -h, --help              顯示此幫助訊息"
 }
 
@@ -446,8 +446,8 @@ EOF
     log "WireGuard 和 Phantun 服務已啟動並設定為開機自啟。"
 }
 
-# 建立可選的 phantun_client 服務
-setup_optional_client_service() {
+# 建立可選的 WireGuard peer 和 phantun_client 服務
+setup_peer_client_service() {
     echo
     local choice
     read -rp "是否要在此伺服器上額外建立一個 phantun_client 服務 (用於測試或串接)? [y/N]: " -e choice < /dev/tty
@@ -555,7 +555,7 @@ main() {
     CLIENT_COUNT=""
     WG_PORT=""
     CLIENT_PHANTUN_PORT=""
-    ADD_CLIENT_SERVICE_ONLY=false
+    SET_PEER_SERVICE_ONLY=false
     ADD_CLIENTS_ONLY=false
 
     # 解析命令列參數
@@ -571,19 +571,19 @@ main() {
             --clients) CLIENT_COUNT="$2"; shift 2 ;;
             --client-phantun-port) CLIENT_PHANTUN_PORT="$2"; shift 2 ;;
             --add-clients) ADD_CLIENTS_ONLY=true; shift 1 ;;
-            --add-client-service) ADD_CLIENT_SERVICE_ONLY=true; shift 1 ;;
+            --set-peer) SET_PEER_SERVICE_ONLY=true; shift 1 ;;
             -h|--help) usage; exit 0 ;;
             *) error "未知選項: $1" ;;
         esac
     done
 
-    if [ "$ADD_CLIENT_SERVICE_ONLY" = true ]; then
+    if [ "$SET_PEER_SERVICE_ONLY" = true ]; then
         log "--- 僅執行新增 phantun-client 服務 ---"
         if [ -z "$WG_INTERFACE" ]; then
             read -rp "請輸入要操作的 WireGuard 介面名稱 (例如 wg0): " -e WG_INTERFACE < /dev/tty
         fi
         if [ -z "$WG_INTERFACE" ]; then error "必須提供 WireGuard 介面名稱。"; fi
-        setup_optional_client_service
+        setup_peer_client_service
         exit 0
     fi
 
@@ -608,7 +608,7 @@ main() {
     generate_server_configs
     setup_services # 必須在產生客戶端之前啟動 wg0，以便使用 `wg set`
     generate_client_packages
-    setup_optional_client_service
+    setup_peer_client_service
 
     echo
     log "🎉 WireGuard + Phantun 伺服器設定完成！"
