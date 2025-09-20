@@ -51,6 +51,8 @@ usage() {
     echo "  --dns <ip>              提供給客戶端的 DNS 伺服器"
     echo "  --clients <count>       要產生的客戶端數量"
     echo "  --client-phantun-port <port> 客戶端 Phantun 監聽的本地 UDP 埠"
+    echo "  --add-clients           僅執行新增客戶端的步驟"
+    echo "  --add-client-service    僅執行新增可選的 phantun-client 服務的步驟"
     echo "  -h, --help              顯示此幫助訊息"
 }
 
@@ -278,6 +280,32 @@ SaveConfig = true
 " > "$PHANTUN_DIR/$WG_INTERFACE.server"
 }
 
+# 載入現有伺服器設定以新增客戶端
+load_existing_server_config() {
+    log "--- 正在載入現有伺服器設定以新增客戶端 ---"
+    local WG_DIR="/etc/wireguard"
+    local PHANTUN_DIR="/etc/phantun"
+    local SERVER_WG_CONF="$WG_DIR/$WG_INTERFACE.conf"
+    local SERVER_PHANTUN_CONF="$PHANTUN_DIR/$WG_INTERFACE.server"
+    local SERVER_PUBKEY_FILE="$WG_DIR/${WG_INTERFACE}_public.key"
+
+    if ! [ -f "$SERVER_WG_CONF" ] || ! [ -f "$SERVER_PHANTUN_CONF" ] || ! [ -f "$SERVER_PUBKEY_FILE" ]; then
+        error "找不到介面 '$WG_INTERFACE' 的現有設定檔。請確認 /etc/wireguard 和 /etc/phantun 中的檔案是否存在。"
+    fi
+
+    log "從設定檔讀取現有設定..."
+    SERVER_PUBLIC_KEY=$(cat "$SERVER_PUBKEY_FILE")
+    WG_SUBNET=$(grep -oP '(?<=Address\s*=\s*).+' "$SERVER_WG_CONF" | xargs)
+    WG_PORT=$(grep -oP '(?<=ListenPort\s*=\s*).+' "$SERVER_WG_CONF" | xargs)
+    PHANTUN_PORT=$(grep -oP '(?<=--local\s+)\d+' "$SERVER_PHANTUN_CONF")
+
+    log "已載入 WG 子網路: $WG_SUBNET, Phantun 埠: $PHANTUN_PORT"
+
+    # 獲取執行此操作所需的其餘資訊
+    if [ -z "$SERVER_PUBLIC_IP" ]; then local default_ip; default_ip=$(curl -s https://ipinfo.io/ip); read -rp "請確認伺服器公網 IP 位址 [預設: $default_ip]: " -e -i "$default_ip" SERVER_PUBLIC_IP < /dev/tty; fi
+    if [ -z "$CLIENT_DNS" ]; then read -rp "請輸入要提供給客戶端的 DNS 伺服器 [預設: 1.1.1.1]: " -e -i "1.1.1.1" CLIENT_DNS < /dev/tty; fi
+}
+
 # 產生客戶端設定包
 generate_client_packages() {
     echo
@@ -287,7 +315,9 @@ generate_client_packages() {
         return
     fi
 
-    log "正在為客戶端產生設定包..."
+    if [ -z "$CLIENT_COUNT" ]; then read -rp "請輸入要新增的客戶端數量 [預設: 1]: " -e -i "1" CLIENT_COUNT < /dev/tty; fi
+    if ! [[ "$CLIENT_COUNT" =~ ^[0-9]+$ ]] || [ "$CLIENT_COUNT" -lt 1 ]; then error "客戶端數量必須是一個大於 0 的整數。"; fi
+
     local IP_BASE
     IP_BASE=$(echo "$WG_SUBNET" | cut -d '.' -f 1-3)
     local CLIENT_PACKAGE_DIR="/root/wireguard-confs"
@@ -297,12 +327,20 @@ generate_client_packages() {
     local SERVER_WG_IP
     SERVER_WG_IP=${WG_SUBNET%/*}
 
+    # 找出目前已設定的最大客戶端 IP，以避免衝突
+    local last_ip_octet
+    last_ip_octet=$(wg show "$WG_INTERFACE" allowed-ips | awk '{print $2}' | grep -oE '[0-9]+$' | sort -rn | head -1)
+    if [ -z "$last_ip_octet" ]; then
+        last_ip_octet=1 # 如果沒有現有客戶端，從 .2 開始
+    fi
+
     for i in $(seq 1 "$CLIENT_COUNT"); do
-        local default_client_name="client$i"
-        local default_client_ip="${IP_BASE}.$((i + 1))"
+        local client_num=$((last_ip_octet - 1 + i))
+        local default_client_name="client${client_num}"
+        local default_client_ip="${IP_BASE}.$((client_num + 1))"
 
         echo # 為每個客戶端增加空行以提高可讀性
-        log "--- 正在設定客戶端 #$i ---"
+        log "--- 正在設定新客戶端 ($i/$CLIENT_COUNT) ---"
 
         # 讓使用者自訂客戶端名稱和 IP
         local CLIENT_NAME
@@ -517,6 +555,8 @@ main() {
     CLIENT_COUNT=""
     WG_PORT=""
     CLIENT_PHANTUN_PORT=""
+    ADD_CLIENT_SERVICE_ONLY=false
+    ADD_CLIENTS_ONLY=false
 
     # 解析命令列參數
     while [[ $# -gt 0 ]]; do
@@ -530,10 +570,34 @@ main() {
             --dns) CLIENT_DNS="$2"; shift 2 ;;
             --clients) CLIENT_COUNT="$2"; shift 2 ;;
             --client-phantun-port) CLIENT_PHANTUN_PORT="$2"; shift 2 ;;
+            --add-clients) ADD_CLIENTS_ONLY=true; shift 1 ;;
+            --add-client-service) ADD_CLIENT_SERVICE_ONLY=true; shift 1 ;;
             -h|--help) usage; exit 0 ;;
             *) error "未知選項: $1" ;;
         esac
     done
+
+    if [ "$ADD_CLIENT_SERVICE_ONLY" = true ]; then
+        log "--- 僅執行新增 phantun-client 服務 ---"
+        if [ -z "$WG_INTERFACE" ]; then
+            read -rp "請輸入要操作的 WireGuard 介面名稱 (例如 wg0): " -e WG_INTERFACE < /dev/tty
+        fi
+        if [ -z "$WG_INTERFACE" ]; then error "必須提供 WireGuard 介面名稱。"; fi
+        setup_optional_client_service
+        exit 0
+    fi
+
+    if [ "$ADD_CLIENTS_ONLY" = true ]; then
+        log "--- 僅執行新增客戶端 ---"
+        if [ -z "$WG_INTERFACE" ]; then
+            read -rp "請輸入要新增客戶端的 WireGuard 介面名稱 (例如 wg0): " -e WG_INTERFACE < /dev/tty
+        fi
+        if [ -z "$WG_INTERFACE" ]; then error "必須提供 WireGuard 介面名稱。"; fi
+        load_existing_server_config
+        generate_client_packages
+        log "✅ 新客戶端新增完成。"
+        exit 0
+    fi
 
     detect_distro
     install_dependencies
