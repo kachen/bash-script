@@ -152,7 +152,7 @@ get_user_input() {
     if [ -z "$SERVER_PUBLIC_IP" ]; then
         local default_ip
         default_ip=$(curl -s https://ipinfo.io/ip)
-        read -rp "請輸入伺服器公網 IP 位址 [預設: $default_ip]: " -e -i "$default_ip" SERVER_PUBLIC_IP
+        read -rp "請輸入伺服器公網 IP 位址 [預設: $default_ip]: " -e -i "$default_ip" SERVER_PUBLIC_IP < /dev/tty
     else
         log "使用參數提供的公網 IP: $SERVER_PUBLIC_IP"
     fi
@@ -161,7 +161,7 @@ get_user_input() {
     if [ -z "$SERVER_NIC" ]; then
         local default_nic
         default_nic=$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)' | head -1)
-        read -rp "請輸入伺服器公網網路介面 [預設: $default_nic]: " -e -i "$default_nic" SERVER_NIC
+        read -rp "請輸入伺服器公網網路介面 [預設: $default_nic]: " -e -i "$default_nic" SERVER_NIC < /dev/tty
     else
         log "使用參數提供的網路介面: $SERVER_NIC"
     fi
@@ -169,7 +169,7 @@ get_user_input() {
     # --- Phantun TCP 埠 ---
     if [ -z "$PHANTUN_PORT" ]; then
         while true; do
-            read -rp "請輸入 Phantun 監聽的 TCP 埠 (建議 443) [預設: 443]: " -e -i "443" PHANTUN_PORT
+            read -rp "請輸入 Phantun 監聽的 TCP 埠 (建議 443) [預設: 443]: " -e -i "443" PHANTUN_PORT < /dev/tty
             if ss -lnt | grep -q ":$PHANTUN_PORT\b"; then
                 warn "TCP 埠 $PHANTUN_PORT 已被佔用，請選擇其他埠。"
                 PHANTUN_PORT="" # 重置以便循環
@@ -185,7 +185,7 @@ get_user_input() {
     # --- WireGuard 介面名稱 ---
     if [ -z "$WG_INTERFACE" ]; then
         while true; do
-            read -rp "請輸入 WireGuard 介面名稱 [預設: wg0]: " -e -i "wg0" WG_INTERFACE
+            read -rp "請輸入 WireGuard 介面名稱 [預設: wg0]: " -e -i "wg0" WG_INTERFACE < /dev/tty
             if ip link show "$WG_INTERFACE" &>/dev/null; then
                 warn "介面 '$WG_INTERFACE' 已存在，請選擇其他名稱。"
                 WG_INTERFACE="" # 重置以便循環
@@ -201,7 +201,7 @@ get_user_input() {
     # --- WireGuard 內部 UDP 埠 ---
     if [ -z "$WG_PORT" ]; then
         while true; do
-            read -rp "請輸入 WireGuard 內部監聽的 UDP 埠 [預設: 51820]: " -e -i "51820" WG_PORT
+            read -rp "請輸入 WireGuard 內部監聽的 UDP 埠 [預設: 51820]: " -e -i "51820" WG_PORT < /dev/tty
             if ss -lnu | grep -q ":$WG_PORT\b"; then
                 warn "UDP 埠 $WG_PORT 已被佔用，請選擇其他埠。"
                 WG_PORT="" # 重置以便循環
@@ -215,13 +215,13 @@ get_user_input() {
     fi
 
     # --- 其他設定 ---
-    if [ -z "$WG_SUBNET" ]; then read -rp "請輸入 WireGuard 的虛擬網段 (CIDR) [預設: 10.9.0.1/24]: " -e -i "10.9.0.1/24" WG_SUBNET; else log "使用參數提供的虛擬網段: $WG_SUBNET"; fi
-    if [ -z "$CLIENT_DNS" ]; then read -rp "請輸入要提供給客戶端的 DNS 伺服器 [預設: 1.1.1.1]: " -e -i "1.1.1.1" CLIENT_DNS; else log "使用參數提供的 DNS: $CLIENT_DNS"; fi
-    if [ -z "$CLIENT_COUNT" ]; then read -rp "請輸入要產生的客戶端數量 [預設: 1]: " -e -i "1" CLIENT_COUNT; else log "使用參數產生的客戶端數量: $CLIENT_COUNT"; fi
+    if [ -z "$WG_SUBNET" ]; then read -rp "請輸入 WireGuard 的虛擬網段 (CIDR) [預設: 10.9.0.1/24]: " -e -i "10.9.0.1/24" WG_SUBNET < /dev/tty; else log "使用參數提供的虛擬網段: $WG_SUBNET"; fi
+    if [ -z "$CLIENT_DNS" ]; then read -rp "請輸入要提供給客戶端的 DNS 伺服器 [預設: 1.1.1.1]: " -e -i "1.1.1.1" CLIENT_DNS < /dev/tty; else log "使用參數提供的 DNS: $CLIENT_DNS"; fi
+    if [ -z "$CLIENT_COUNT" ]; then read -rp "請輸入要產生的客戶端數量 [預設: 1]: " -e -i "1" CLIENT_COUNT < /dev/tty; else log "使用參數產生的客戶端數量: $CLIENT_COUNT"; fi
 
     # --- 客戶端 Phantun UDP 埠 ---
     if [ -z "$CLIENT_PHANTUN_PORT" ]; then
-        read -rp "請輸入客戶端 Phantun 監聽的本地 UDP 埠 [預設: 51821]: " -e -i "51821" CLIENT_PHANTUN_PORT
+        read -rp "請輸入客戶端 Phantun 監聽的本地 UDP 埠 [預設: 51821]: " -e -i "51821" CLIENT_PHANTUN_PORT < /dev/tty
     else
         log "使用參數提供的客戶端 Phantun UDP 埠: $CLIENT_PHANTUN_PORT"
     fi
@@ -291,7 +291,7 @@ remote = \"127.0.0.1:$WG_PORT\"
 generate_client_packages() {
     echo
     local choice
-    read -rp "是否要為每個客戶端產生設定包? [y/N]: " -e choice
+    read -rp "是否要為每個客戶端產生設定包? [y/N]: " -e choice < /dev/tty
     if [[ ! "$choice" =~ ^[Yy]$ ]]; then
         return
     fi
@@ -378,7 +378,7 @@ WantedBy=multi-user.target
 setup_optional_client_service() {
     echo
     local choice
-    read -rp "是否要在此伺服器上額外建立一個 phantun_client 服務 (用於測試或串接)? [y/N]: " -e choice
+    read -rp "是否要在此伺服器上額外建立一個 phantun_client 服務 (用於測試或串接)? [y/N]: " -e choice < /dev/tty
     if [[ ! "$choice" =~ ^[Yy]$ ]]; then
         return
     fi
@@ -387,12 +387,12 @@ setup_optional_client_service() {
 
     local PHANTUN_REMOTE_SERVER=""
     while [ -z "$PHANTUN_REMOTE_SERVER" ]; do
-        read -rp "請輸入 phantun_client 要連線的遠端伺服器位址 (例如: other_server_ip:443): " -e PHANTUN_REMOTE_SERVER
+        read -rp "請輸入 phantun_client 要連線的遠端伺服器位址 (例如: other_server_ip:443): " -e PHANTUN_REMOTE_SERVER < /dev/tty
     done
 
     local PHANTUN_CLIENT_LOCAL_PORT
     while true; do
-        read -rp "請輸入 phantun_client 本地監聽的 UDP 埠 [預設: 51831]: " -e -i "51831" PHANTUN_CLIENT_LOCAL_PORT
+        read -rp "請輸入 phantun_client 本地監聽的 UDP 埠 [預設: 51831]: " -e -i "51831" PHANTUN_CLIENT_LOCAL_PORT < /dev/tty
         if ! ss -lnu | grep -q ":$PHANTUN_CLIENT_LOCAL_PORT\b"; then
             break
         fi
@@ -495,4 +495,4 @@ main() {
 }
 
 # 執行主函數
-main
+main "$@"
