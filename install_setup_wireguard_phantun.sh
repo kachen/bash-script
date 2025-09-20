@@ -400,6 +400,7 @@ PersistentKeepalive = 25
     wg-quick save "$WG_INTERFACE"
     log "所有客戶端設定包已產生於 $CLIENT_PACKAGE_DIR"
     warn "請將每個 client 資料夾安全地傳輸到對應的客戶端設備。"
+    log "例如： scp /root/wireguard-confs/client1 client1_ip:/root/wireguard-peers/server1"
 }
 
 # 建立並啟用服務
@@ -617,7 +618,6 @@ main() {
     log "每個客戶端資料夾 (例如 client1) 包含："
     log "  - wg0.conf: WireGuard 設定檔，匯入到客戶端 App。"
     log "  - wg0.png: WireGuard 設定的 QR Code，可用手機 App 掃描。"
-    log "請 scp /root/wireguard-confs/client1 client1_ip:/root/wireguard-peers/server1"
 }
 
 # 執行主函數
