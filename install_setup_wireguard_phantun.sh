@@ -295,9 +295,9 @@ load_existing_server_config() {
 
     log "從設定檔讀取現有設定..."
     SERVER_PUBLIC_KEY=$(cat "$SERVER_PUBKEY_FILE")
-    WG_SUBNET=$(grep -oP '(?<=Address\s*=\s*).+' "$SERVER_WG_CONF" | xargs)
-    WG_PORT=$(grep -oP '(?<=ListenPort\s*=\s*).+' "$SERVER_WG_CONF" | xargs)
-    PHANTUN_PORT=$(grep -oP '(?<=--local\s+)\d+' "$SERVER_PHANTUN_CONF")
+    WG_SUBNET=$(grep -E '^\s*Address\s*=' "$SERVER_WG_CONF" | sed -E 's/^\s*Address\s*=\s*//' | xargs)
+    WG_PORT=$(grep -E '^\s*ListenPort\s*=' "$SERVER_WG_CONF" | sed -E 's/^\s*ListenPort\s*=\s*//' | xargs)
+    PHANTUN_PORT=$(awk '/--local/ {print $2}' "$SERVER_PHANTUN_CONF")
 
     log "已載入 WG 子網路: $WG_SUBNET, Phantun 埠: $PHANTUN_PORT"
 
@@ -487,9 +487,9 @@ setup_peer_client_service() {
         CLIENT_PUBLIC_KEY=$(wg pubkey < "$SERVER_DIR/private.key")
         local CLIENT_ALLOWED_IPS
         # 從客戶端設定檔的 [Peer] 區塊中直接讀取 AllowedIPs 的值
-        CLIENT_ALLOWED_IPS=$(grep -oP '(?<=AllowedIPs\s*=\s*).+' "$WG_CONF_PATH" | xargs) # xargs 用於去除前後多餘的空格
+        CLIENT_ALLOWED_IPS=$(grep -E '^\s*AllowedIPs\s*=' "$WG_CONF_PATH" | sed -E 's/^\s*AllowedIPs\s*=\s*//' | xargs)
         local CLIENT_ENDPOINT
-        CLIENT_ENDPOINT=$(grep -oP '(?<=Endpoint\s*=\s*)[^ ]+' "$WG_CONF_PATH")
+        CLIENT_ENDPOINT=$(grep -E '^\s*Endpoint\s*=' "$WG_CONF_PATH" | sed -E 's/^\s*Endpoint\s*=\s*//' | xargs)
 
         if [ -n "$CLIENT_PUBLIC_KEY" ] && [ -n "$CLIENT_ALLOWED_IPS" ] && [ -n "$CLIENT_ENDPOINT" ]; then
             log "找到客戶端公鑰: $CLIENT_PUBLIC_KEY"
