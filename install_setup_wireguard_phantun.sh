@@ -356,7 +356,7 @@ PersistentKeepalive = 25
 " > "$CLIENT_DIR/phantun.client"
 
         # 產生 QR Code
-        qrencode -t ANSIUTF8 -o "$CLIENT_DIR/wg0.png" < "$WG_CLIENT_CONF"
+        qrencode -t ANSIUTF8 -o "$CLIENT_DIR/wg0.png" < "$CLIENT_DIR/wg0.conf"
     done
     
     wg-quick save "$WG_INTERFACE"
