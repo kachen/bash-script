@@ -269,15 +269,13 @@ generate_server_configs() {
 Address = $WG_SUBNET
 ListenPort = $WG_PORT
 PrivateKey = $SERVER_PRIVATE_KEY
-SaveConfig = true
-" > "$WG_DIR/$WG_INTERFACE.conf"
+SaveConfig = true" > "$WG_DIR/$WG_INTERFACE.conf"
 
     # Phantun 設定
     local PHANTUN_DIR="/etc/phantun"
     mkdir -p "$PHANTUN_DIR"
     echo "--local $PHANTUN_PORT
---remote 127.0.0.1:$WG_PORT
-" > "$PHANTUN_DIR/$WG_INTERFACE.server"
+--remote 127.0.0.1:$WG_PORT" > "$PHANTUN_DIR/$WG_INTERFACE.server"
 }
 
 # 載入現有伺服器設定以新增客戶端
@@ -385,13 +383,11 @@ DNS = $CLIENT_DNS
 PublicKey = $SERVER_PUBLIC_KEY
 Endpoint = 127.0.0.1:$CURRENT_CLIENT_PHANTUN_PORT
 AllowedIPs = $SERVER_WG_IP/32
-PersistentKeepalive = 25
-" > "$CLIENT_DIR/wg0.conf"
+PersistentKeepalive = 25" > "$CLIENT_DIR/wg0.conf"
 
         # 建立客戶端 Phantun 設定檔
-        echo "--local = \"127.0.0.1:$CURRENT_CLIENT_PHANTUN_PORT\"
---remote = \"$SERVER_PUBLIC_IP:$PHANTUN_PORT\"
-" > "$CLIENT_DIR/phantun.client"
+        echo "--local 127.0.0.1:$CURRENT_CLIENT_PHANTUN_PORT
+--remote $SERVER_PUBLIC_IP:$PHANTUN_PORT" > "$CLIENT_DIR/phantun.client"
 
         # 產生 QR Code
         qrencode -t ANSIUTF8 -o "$CLIENT_DIR/wg0.png" < "$CLIENT_DIR/wg0.conf"
@@ -618,6 +614,7 @@ main() {
     log "每個客戶端資料夾 (例如 client1) 包含："
     log "  - wg0.conf: WireGuard 設定檔，匯入到客戶端 App。"
     log "  - wg0.png: WireGuard 設定的 QR Code，可用手機 App 掃描。"
+    log "  - phantun.client: Phantun 設定檔，匯入到客戶端 App。"
 }
 
 # 執行主函數
