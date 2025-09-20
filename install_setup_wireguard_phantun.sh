@@ -169,7 +169,7 @@ get_user_input() {
     # --- Phantun TCP 埠 ---
     if [ -z "$PHANTUN_PORT" ]; then
         while true; do
-            read -rp "請輸入 Phantun 監聽的 TCP 埠 (建議 443) [預設: 443]: " -e -i "443" PHANTUN_PORT < /dev/tty
+            read -rp "請輸入 Phantun 監聽的 TCP 埠 (建議 15004) [預設: 15004]: " -e -i "15004" PHANTUN_PORT < /dev/tty
             if ss -lnt | grep -q ":$PHANTUN_PORT\b"; then
                 warn "TCP 埠 $PHANTUN_PORT 已被佔用，請選擇其他埠。"
                 PHANTUN_PORT="" # 重置以便循環
@@ -201,7 +201,7 @@ get_user_input() {
     # --- WireGuard 內部 UDP 埠 ---
     if [ -z "$WG_PORT" ]; then
         while true; do
-            read -rp "請輸入 WireGuard 內部監聽的 UDP 埠 [預設: 51820]: " -e -i "51820" WG_PORT < /dev/tty
+            read -rp "請輸入 WireGuard 內部監聽的 UDP 埠 [預設: 5004]: " -e -i "5004" WG_PORT < /dev/tty
             if ss -lnu | grep -q ":$WG_PORT\b"; then
                 warn "UDP 埠 $WG_PORT 已被佔用，請選擇其他埠。"
                 WG_PORT="" # 重置以便循環
@@ -215,17 +215,9 @@ get_user_input() {
     fi
 
     # --- 其他設定 ---
-    if [ -z "$WG_SUBNET" ]; then read -rp "請輸入 WireGuard 的虛擬網段 (CIDR) [預設: 10.9.0.1/24]: " -e -i "10.9.0.1/24" WG_SUBNET < /dev/tty; else log "使用參數提供的虛擬網段: $WG_SUBNET"; fi
+    if [ -z "$WG_SUBNET" ]; then read -rp "請輸入 WireGuard 的虛擬網段 (CIDR) [預設: 10.21.12.1/24]: " -e -i "10.21.12.1/24" WG_SUBNET < /dev/tty; else log "使用參數提供的虛擬網段: $WG_SUBNET"; fi
     if [ -z "$CLIENT_DNS" ]; then read -rp "請輸入要提供給客戶端的 DNS 伺服器 [預設: 1.1.1.1]: " -e -i "1.1.1.1" CLIENT_DNS < /dev/tty; else log "使用參數提供的 DNS: $CLIENT_DNS"; fi
     if [ -z "$CLIENT_COUNT" ]; then read -rp "請輸入要產生的客戶端數量 [預設: 1]: " -e -i "1" CLIENT_COUNT < /dev/tty; else log "使用參數產生的客戶端數量: $CLIENT_COUNT"; fi
-
-    # --- 客戶端 Phantun UDP 埠 ---
-    if [ -z "$CLIENT_PHANTUN_PORT" ]; then
-        read -rp "請輸入客戶端 Phantun 監聽的本地 UDP 埠 [預設: 51821]: " -e -i "51821" CLIENT_PHANTUN_PORT < /dev/tty
-    else
-        log "使用參數提供的客戶端 Phantun UDP 埠: $CLIENT_PHANTUN_PORT"
-    fi
-
 
     # --- 驗證 ---
     if ! [[ "$CLIENT_COUNT" =~ ^[0-9]+$ ]] || [ "$CLIENT_COUNT" -lt 1 ]; then
@@ -281,10 +273,9 @@ SaveConfig = true
     # Phantun 設定
     local PHANTUN_DIR="/etc/phantun"
     mkdir -p "$PHANTUN_DIR"
-    echo "[server]
-listen = \"0.0.0.0:$PHANTUN_PORT\"
-remote = \"127.0.0.1:$WG_PORT\"
-" > "$PHANTUN_DIR/server.toml"
+    echo "--local $PHANTUN_PORT
+--remote 127.0.0.1:$WG_PORT
+" > "$PHANTUN_DIR/$WG_INTERFACE.server"
 }
 
 # 產生客戶端設定包
@@ -299,29 +290,54 @@ generate_client_packages() {
     log "正在為客戶端產生設定包..."
     local IP_BASE
     IP_BASE=$(echo "$WG_SUBNET" | cut -d '.' -f 1-3)
-    local CLIENT_PACKAGE_DIR="/root/wireguard-clients"
+    local CLIENT_PACKAGE_DIR="/root/wireguard-confs"
     mkdir -p "$CLIENT_PACKAGE_DIR"
 
+    # 從 WG_SUBNET (例如 10.21.12.1/24) 中提取伺服器的 IP 位址 (10.21.12.1)
+    local SERVER_WG_IP
+    SERVER_WG_IP=${WG_SUBNET%/*}
+
     for i in $(seq 1 "$CLIENT_COUNT"); do
-        local CLIENT_NAME="client$i"
+        local default_client_name="client$i"
+        local default_client_ip="${IP_BASE}.$((i + 1))"
+
+        echo # 為每個客戶端增加空行以提高可讀性
+        log "--- 正在設定客戶端 #$i ---"
+
+        # 讓使用者自訂客戶端名稱和 IP
+        local CLIENT_NAME
+        read -rp "請輸入客戶端名稱 [預設: $default_client_name]: " -e -i "$default_client_name" CLIENT_NAME < /dev/tty
+        local CLIENT_IP
+        read -rp "請輸入 '$CLIENT_NAME' 的 IP 位址 [預設: $default_client_ip]: " -e -i "$default_client_ip" CLIENT_IP < /dev/tty
+
+        # --- 客戶端 Phantun UDP 埠 ---
+        # 根據客戶端 IP 產生一個可預測的預設埠號
+        # 例如: IP 10.21.12.2 -> Port 12002
+        local third_octet
+        third_octet=$(echo "$SERVER_WG_IP" | cut -d '.' -f 3)
+        local fourth_octet
+        fourth_octet=$(echo "$SERVER_WG_IP" | cut -d '.' -f 4)
+        local default_client_phantun_port
+        default_client_phantun_port=$(printf "%2d%03d" "$third_octet" "$fourth_octet")
+
+        read -rp "請輸入 '$CLIENT_NAME' 的 Phantun 本地 UDP 埠 [預設: $default_client_phantun_port]: " -e -i "$default_client_phantun_port" CURRENT_CLIENT_PHANTUN_PORT < /dev/tty
+        # 建立客戶端目錄
         local CLIENT_DIR="$CLIENT_PACKAGE_DIR/$CLIENT_NAME"
+        if [ -d "$CLIENT_DIR" ]; then
+            warn "目錄 '$CLIENT_DIR' 已存在，將會覆蓋其中的檔案。"
+        fi
         mkdir -p "$CLIENT_DIR"
 
-        log "正在處理 $CLIENT_NAME..."
-        local CLIENT_IP="${IP_BASE}.$((i + 1))"
-        
+        log "正在為 '$CLIENT_NAME' 於 '$CLIENT_DIR' 產生設定..."
         # 產生客戶端金鑰
         wg genkey | tee "$CLIENT_DIR/private.key" | wg pubkey > "$CLIENT_DIR/public.key"
-        local CLIENT_PRIVATE_KEY
-        CLIENT_PRIVATE_KEY=$(cat "$CLIENT_DIR/private.key")
-        local CLIENT_PUBLIC_KEY
-        CLIENT_PUBLIC_KEY=$(cat "$CLIENT_DIR/public.key")
+        local CLIENT_PRIVATE_KEY=$(cat "$CLIENT_DIR/private.key")
+        local CLIENT_PUBLIC_KEY=$(cat "$CLIENT_DIR/public.key")
 
         # 更新 WireGuard 伺服器設定
         wg set "$WG_INTERFACE" peer "$CLIENT_PUBLIC_KEY" allowed-ips "$CLIENT_IP/32"
 
         # 建立客戶端 WireGuard 設定檔
-        local WG_CLIENT_CONF="$CLIENT_DIR/wg0.conf"
         echo "[Interface]
 PrivateKey = $CLIENT_PRIVATE_KEY
 Address = $CLIENT_IP/24
@@ -329,21 +345,21 @@ DNS = $CLIENT_DNS
 
 [Peer]
 PublicKey = $SERVER_PUBLIC_KEY
-Endpoint = 127.0.0.1:$CLIENT_PHANTUN_PORT
-AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = 127.0.0.1:$CURRENT_CLIENT_PHANTUN_PORT
+AllowedIPs = $SERVER_WG_IP/32
 PersistentKeepalive = 25
-" > "$WG_CLIENT_CONF"
+" > "$CLIENT_DIR/wg0.conf"
 
         # 建立客戶端 Phantun 設定檔
-        echo "[client]
-local = \"127.0.0.1:$CLIENT_PHANTUN_PORT\"
-remote = \"$SERVER_PUBLIC_IP:$PHANTUN_PORT\"
-" > "$CLIENT_DIR/phantun.toml"
+        echo "--local = \"127.0.0.1:$CURRENT_CLIENT_PHANTUN_PORT\"
+--remote = \"$SERVER_PUBLIC_IP:$PHANTUN_PORT\"
+" > "$CLIENT_DIR/phantun.client"
 
         # 產生 QR Code
         qrencode -t ANSIUTF8 -o "$CLIENT_DIR/wg0.png" < "$WG_CLIENT_CONF"
     done
     
+    wg-quick save "$WG_INTERFACE"
     log "所有客戶端設定包已產生於 $CLIENT_PACKAGE_DIR"
     warn "請將每個 client 資料夾安全地傳輸到對應的客戶端設備。"
 }
@@ -352,25 +368,43 @@ remote = \"$SERVER_PUBLIC_IP:$PHANTUN_PORT\"
 setup_services() {
     log "正在建立並啟用 systemd 服務..."
     # Phantun 服務
-    echo "[Unit]
+    log "正在於 /etc/systemd/system/phantun-server@.service 建立服務檔案"
+    cat > /etc/systemd/system/phantun-server@.service << EOF
+[Unit]
 Description=Phantun Server
 After=network.target
 Wants=wg-quick@$WG_INTERFACE.service
 
 [Service]
 User=root
-ExecStart=/usr/local/bin/phantun_server -c /etc/phantun/server.toml
+ExecStart=/usr/local/bin/phantun_server /etc/phantun/$WG_INTERFACE.server
 Restart=always
 RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
-" > /etc/systemd/system/phantun-server.service
+EOF
 
+    log "正在於 /etc/systemd/system/phantun-client@.service 建立服務檔案"
+    cat > "/etc/systemd/system/phantun-client@.service" << "EOF"
+[Unit]
+Description=Phantun Client (Optional)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/phantun_client $(for i in $(cat /etc/phantun/%i.client); do tmp="$tmp $i"; done; echo $tmp)
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
     # 重新載入並啟動
     systemctl daemon-reload
     systemctl enable --now "wg-quick@$WG_INTERFACE.service"
-    systemctl enable --now phantun-server.service
+    systemctl enable --now phantun-server@$WG_INTERFACE.service
     log "WireGuard 和 Phantun 服務已啟動並設定為開機自啟。"
 }
 
@@ -383,55 +417,90 @@ setup_optional_client_service() {
         return
     fi
 
-    log "--- 正在設定可選的 Phantun Client 服務 ---"
+    log "--- 正在設定可選的客戶端服務 ---"
+    local SERVER_NAME
+    read -rp "請輸入要設定的客戶端名稱 (對應 /root/wireguard-peers/ 下的資料夾名稱) [預設: server1]: " -e -i "server1" SERVER_NAME < /dev/tty
 
-    local PHANTUN_REMOTE_SERVER=""
-    while [ -z "$PHANTUN_REMOTE_SERVER" ]; do
-        read -rp "請輸入 phantun_client 要連線的遠端伺服器位址 (例如: other_server_ip:443): " -e PHANTUN_REMOTE_SERVER < /dev/tty
-    done
+    local SERVER_DIR="/root/wireguard-peers/$SERVER_NAME"
+    local WG_CONF_PATH="$SERVER_DIR/wg0.conf"
+    local PHANTUN_CONF_PATH="$SERVER_DIR/phantun.client"
+    local use_existing_config=false
 
-    local PHANTUN_CLIENT_LOCAL_PORT
-    while true; do
-        read -rp "請輸入 phantun_client 本地監聽的 UDP 埠 [預設: 51831]: " -e -i "51831" PHANTUN_CLIENT_LOCAL_PORT < /dev/tty
-        if ! ss -lnu | grep -q ":$PHANTUN_CLIENT_LOCAL_PORT\b"; then
-            break
+    if [ -f "$WG_CONF_PATH" ] && [ -f "$PHANTUN_CONF_PATH" ]; then
+        local use_existing_choice
+        read -rp "在 $SERVER_DIR 中找到現有的設定檔，是否直接使用它們來設定此伺服器上的 client 服務? [Y/n]: " -e -i "Y" use_existing_choice < /dev/tty
+        if [[ "$use_existing_choice" =~ ^[Yy]$ ]]; then
+            use_existing_config=true
         fi
-        warn "UDP 埠 $PHANTUN_CLIENT_LOCAL_PORT 已被佔用，請選擇其他埠。"
-    done
+    fi
 
-    log "正在於 /etc/phantun/client.toml 建立客戶端設定檔"
-    cat > "/etc/phantun/client.toml" << EOF
-# Phantun Client Configuration (Optional service on server)
-# 由設定腳本產生
+    if [ "$use_existing_config" = true ]; then
+        log "正在使用 $SERVER_DIR 中的設定檔自動設定..."
 
-[client]
-local = "127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT"
-remote = "$PHANTUN_REMOTE_SERVER"
-EOF
+        # 1. 設定 Phantun Client
+        log "正在複製 Phantun 設定檔至 /etc/phantun/$SERVER_NAME.client"
+        mkdir -p /etc/phantun
+        cp "$PHANTUN_CONF_PATH" "/etc/phantun/$SERVER_NAME.client"
+        
+        # 2. 設定 WireGuard Peer
+        log "正在從 $WG_CONF_PATH 讀取客戶端資訊並新增至伺服器..."
+        # 從客戶端設定檔中解析出公鑰、IP 位址和 Endpoint
+        local CLIENT_PUBLIC_KEY
+        CLIENT_PUBLIC_KEY=$(wg pubkey < "$SERVER_DIR/private.key")
+        local CLIENT_ALLOWED_IPS
+        # 從客戶端設定檔的 [Peer] 區塊中直接讀取 AllowedIPs 的值
+        CLIENT_ALLOWED_IPS=$(grep -oP '(?<=AllowedIPs\s*=\s*).+' "$WG_CONF_PATH" | xargs) # xargs 用於去除前後多餘的空格
+        local CLIENT_ENDPOINT
+        CLIENT_ENDPOINT=$(grep -oP '(?<=Endpoint\s*=\s*)[^ ]+' "$WG_CONF_PATH")
 
-    log "正在於 /etc/systemd/system/phantun-client.service 建立服務檔案"
-    cat > "/etc/systemd/system/phantun-client.service" << EOF
-[Unit]
-Description=Phantun Client (Optional)
-After=network.target
+        if [ -n "$CLIENT_PUBLIC_KEY" ] && [ -n "$CLIENT_ALLOWED_IPS" ] && [ -n "$CLIENT_ENDPOINT" ]; then
+            log "找到客戶端公鑰: $CLIENT_PUBLIC_KEY"
+            log "找到客戶端 AllowedIPs: $CLIENT_ALLOWED_IPS"
+            log "找到客戶端 Endpoint: $CLIENT_ENDPOINT"
+            # 設定 peer，包含 Endpoint，這樣伺服器就知道要透過本地 phantun client 將流量轉發出去
+            wg set "$WG_INTERFACE" peer "$CLIENT_PUBLIC_KEY" \
+                allowed-ips "$CLIENT_ALLOWED_IPS" \
+                endpoint "$CLIENT_ENDPOINT"
+            log "已將 '$SERVER_NAME' 作為 peer 新增至 '$WG_INTERFACE' 介面。"
+        else
+            warn "無法從 '$SERVER_DIR' 的設定檔中解析出完整的客戶端資訊 (公鑰、AllowedIPs、Endpoint)，跳過新增 peer。"
+        fi
 
-[Service]
-Type=simple
-User=root
-ExecStart=/usr/local/bin/phantun_client -c /etc/phantun/client.toml
-Restart=always
-RestartSec=3
+        # 3. 啟動 phantun 客戶端服務
+        log "正在重新載入 systemd 並啟動服務..."
+        systemctl daemon-reload
+        systemctl enable --now "phantun-client@$SERVER_NAME.service"
 
-[Install]
-WantedBy=multi-user.target
-EOF
+        log "使用現有設定檔設定 Phantun 和 WireGuard 客戶端服務完成。"
+        log "服務 'phantun-client@$SERVER_NAME.service' 已啟動。"
+    else
+        if [ -f "$WG_CONF_PATH" ]; then
+            warn "找到了設定檔，但您選擇了手動設定。"
+        fi
+        log "--- 正在手動設定 Phantun Client 服務 ---"
+        local PHANTUN_REMOTE_SERVER=""
+        while [ -z "$PHANTUN_REMOTE_SERVER" ]; do
+            read -rp "請輸入 phantun_client 要連線的遠端伺服器位址 (例如: other_server_ip:443): " -e PHANTUN_REMOTE_SERVER < /dev/tty
+        done
 
-    log "正在重新載入 systemd 並啟動 phantun-client 服務..."
-    systemctl daemon-reload
-    systemctl enable --now phantun-client.service
+        local PHANTUN_CLIENT_LOCAL_PORT
+        while true; do
+            read -rp "請輸入 phantun_client 本地監聽的 UDP 埠 [預設: 51831]: " -e -i "51831" PHANTUN_CLIENT_LOCAL_PORT < /dev/tty
+            if ! ss -lnu | grep -q ":$PHANTUN_CLIENT_LOCAL_PORT\b"; then break; fi
+            warn "UDP 埠 $PHANTUN_CLIENT_LOCAL_PORT 已被佔用，請選擇其他埠。"
+        done
 
-    log "可選的 Phantun Client 服務設定完成並已啟動。"
-    warn "此服務會將本地 127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT 的 UDP 流量轉發到 $PHANTUN_REMOTE_SERVER。"
+        log "正在於 /etc/phantun/$SERVER_NAME.client 建立客戶端設定檔"
+        echo "--local = \"127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT\" --remote = \"$PHANTUN_REMOTE_SERVER\"" > "/etc/phantun/$SERVER_NAME.client"
+
+        log "正在重新載入 systemd 並啟動 phantun-client@$SERVER_NAME.service..."
+        systemctl daemon-reload
+        systemctl enable --now "phantun-client@$SERVER_NAME.service"
+
+        log "手動設定的 Phantun Client 服務已啟動。"
+        warn "此服務會將本地 127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT 的 UDP 流量轉發到 $PHANTUN_REMOTE_SERVER。"
+        warn "您需要手動設定對應的 WireGuard 介面才能使用此連線。"
+    fi
 }
 
 # --- 主腳本 ---
@@ -480,18 +549,11 @@ main() {
     echo
     log "🎉 WireGuard + Phantun 伺服器設定完成！"
     echo
-    log "客戶端設定包位於 /root/wireguard-clients/ 目錄下。"
+    log "客戶端設定包位於 /root/wireguard-confs/ 目錄下。"
     log "每個客戶端資料夾 (例如 client1) 包含："
     log "  - wg0.conf: WireGuard 設定檔，匯入到客戶端 App。"
-    log "  - phantun.toml: Phantun 客戶端設定檔。"
     log "  - wg0.png: WireGuard 設定的 QR Code，可用手機 App 掃描。"
-    echo
-    warn "客戶端操作步驟："
-    warn "1. 在客戶端安裝 WireGuard 和 Phantun (解壓縮後使用 phantun_client)。"
-    warn "2. 使用 phantun.toml 啟動 Phantun 客戶端 (例如: ./phantun_client -c phantun.toml)。"
-    warn "3. 匯入 wg0.conf 或掃描 QR Code 來設定 WireGuard 並連線。"
-    echo
-    log "您可以使用 'wg show' 和 'systemctl status phantun-server' 來檢查伺服器狀態。"
+    log "請 scp /root/wireguard-confs/client1 client1_ip:/root/wireguard-peers/server1"
 }
 
 # 執行主函數
