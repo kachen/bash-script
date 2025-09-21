@@ -391,12 +391,32 @@ PersistentKeepalive = 25" > "$CLIENT_DIR/wg0.conf"
 
         # 產生 QR Code
         qrencode -t ANSIUTF8 -o "$CLIENT_DIR/wg0.png" < "$CLIENT_DIR/wg0.conf"
+        
+        local copy_choice
+        read -rp "是否顯示將 '$CLIENT_NAME' 設定檔拷貝到遠端設備的 scp 指令? [y/N]: " -e copy_choice < /dev/tty
+        if [[ "$copy_choice" =~ ^[Yy]$ ]]; then
+            local remote_user_host
+            local remote_dir_name
+            read -rp "請輸入遠端設備的使用者和 IP (例如: user@192.168.1.100): " -e remote_user_host < /dev/tty
+            if [ -n "$remote_user_host" ]; then
+                # 詢問在遠端設備上要使用的目錄名稱，預設為本機的主機名稱
+                read -rp "請輸入在遠端設備上存放此設定的目錄名稱 [預設: $(hostname -s)]: " -e -i "$(hostname -s)" remote_dir_name < /dev/tty
+
+                log "請執行以下指令來拷貝設定檔目錄 (這對於設定另一台伺服器作為 peer 特別有用):"
+                warn "scp -r \"$CLIENT_DIR\" \"${remote_user_host}:/root/wireguard-peers/${remote_dir_name}\""
+            fi
+        fi
+
     done
     
     wg-quick save "$WG_INTERFACE"
+    echo
     log "所有客戶端設定包已產生於 $CLIENT_PACKAGE_DIR"
+    log "每個客戶端資料夾 (例如 client1) 包含："
+    log "  - wg0.conf: WireGuard 設定檔，匯入到客戶端 App。"
+    log "  - wg0.png: WireGuard 設定的 QR Code，可用手機 App 掃描。"
+    log "  - phantun.client: Phantun 設定檔，匯入到客戶端 App。"
     warn "請將每個 client 資料夾安全地傳輸到對應的客戶端設備。"
-    log "例如： scp /root/wireguard-confs/client1 client1_ip:/root/wireguard-peers/server1"
 }
 
 # 建立並啟用服務
@@ -447,12 +467,12 @@ EOF
 setup_peer_client_service() {
     echo
     local choice
-    read -rp "是否要在此伺服器上額外建立一個 phantun_client 服務 (用於測試或串接)? [y/N]: " -e choice < /dev/tty
+    read -rp "是否要在此伺服器上建立一個 phantun_client 服務用於 WireGuard Peer 串接? [y/N]: " -e choice < /dev/tty
     if [[ ! "$choice" =~ ^[Yy]$ ]]; then
         return
     fi
 
-    log "--- 正在設定可選的客戶端服務 ---"
+    log "--- 開始設定 Phantun Client 服務 ---"
     local SERVER_NAME
     read -rp "請輸入要設定的客戶端名稱 (對應 /root/wireguard-peers/ 下的資料夾名稱) [預設: server1]: " -e -i "server1" SERVER_NAME < /dev/tty
 
@@ -473,7 +493,7 @@ setup_peer_client_service() {
         log "正在使用 $SERVER_DIR 中的設定檔自動設定..."
 
         # 1. 設定 Phantun Client
-        log "正在複製 Phantun 設定檔至 /etc/phantun/$SERVER_NAME.client"
+        log "正在複製 Phantun Client 設定檔至 /etc/phantun/$SERVER_NAME.client"
         mkdir -p /etc/phantun
         cp "$PHANTUN_CONF_PATH" "/etc/phantun/$SERVER_NAME.client"
         
@@ -498,7 +518,7 @@ setup_peer_client_service() {
                 endpoint "$CLIENT_ENDPOINT"
             log "已將 '$SERVER_NAME' 作為 peer 新增至 '$WG_INTERFACE' 介面。"
         else
-            warn "無法從 '$SERVER_DIR' 的設定檔中解析出完整的客戶端資訊 (公鑰、AllowedIPs、Endpoint)，跳過新增 peer。"
+            warn "無法從 '$SERVER_DIR' 的設定檔中解析出完整的客戶端資訊 (公鑰、AllowedIPs、Endpoint)，跳過新增 Peer。"
         fi
 
         # 3. 啟動 phantun 客戶端服務
@@ -511,6 +531,8 @@ setup_peer_client_service() {
     else
         if [ -f "$WG_CONF_PATH" ]; then
             warn "找到了設定檔，但您選擇了手動設定。"
+        else
+            warn "找不到設定檔，進入手動設定。"
         fi
         log "--- 正在手動設定 Phantun Client 服務 ---"
         local PHANTUN_REMOTE_SERVER=""
@@ -601,20 +623,14 @@ main() {
     install_phantun
     get_user_input
     setup_ip_forwarding
-    setup_firewall
+    #setup_firewall
     generate_server_configs
     setup_services # 必須在產生客戶端之前啟動 wg0，以便使用 `wg set`
     generate_client_packages
     setup_peer_client_service
 
     echo
-    log "🎉 WireGuard + Phantun 伺服器設定完成！"
-    echo
-    log "客戶端設定包位於 /root/wireguard-confs/ 目錄下。"
-    log "每個客戶端資料夾 (例如 client1) 包含："
-    log "  - wg0.conf: WireGuard 設定檔，匯入到客戶端 App。"
-    log "  - wg0.png: WireGuard 設定的 QR Code，可用手機 App 掃描。"
-    log "  - phantun.client: Phantun 設定檔，匯入到客戶端 App。"
+    log "🎉 設定完成！"
 }
 
 # 執行主函數
