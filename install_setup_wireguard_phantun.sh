@@ -371,7 +371,9 @@ generate_client_packages() {
 
     # 找出目前已設定的最大客戶端 IP，以避免衝突
     local last_ip_octet
-    last_ip_octet=$(wg show "$WG_INTERFACE" allowed-ips | awk '{print $2}' | grep -oE '[0-9]+$' | sort -rn | head -1)
+    # 從 'wg show' 的輸出中，提取 AllowedIPs (e.g., 10.21.12.2/32)，
+    # 然後取出 IP 的最後一個八位位元組，並找到最大值。
+    last_ip_octet=$(wg show "$WG_INTERFACE" allowed-ips | awk '{print $2}' | sed 's|/.*||' | cut -d. -f4 | sort -rn | head -n 1)
     if [ -z "$last_ip_octet" ]; then
         last_ip_octet=1 # 如果沒有現有客戶端，從 .2 開始
     fi
