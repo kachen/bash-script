@@ -265,12 +265,6 @@ get_user_input() {
     # --- 其他設定 ---
     if [ -z "$WG_SUBNET" ]; then read -rp "請輸入 WireGuard 的虛擬網段 (CIDR) [預設: 10.21.12.1/24]: " -e -i "10.21.12.1/24" WG_SUBNET < /dev/tty; else log "使用參數提供的虛擬網段: $WG_SUBNET"; fi
     if [ -z "$CLIENT_DNS" ]; then read -rp "請輸入要提供給客戶端的 DNS 伺服器 [預設: 1.1.1.1]: " -e -i "1.1.1.1" CLIENT_DNS < /dev/tty; else log "使用參數提供的 DNS: $CLIENT_DNS"; fi
-    if [ -z "$CLIENT_COUNT" ]; then read -rp "請輸入要產生的客戶端數量 [預設: 1]: " -e -i "1" CLIENT_COUNT < /dev/tty; else log "使用參數產生的客戶端數量: $CLIENT_COUNT"; fi
-
-    # --- 驗證 ---
-    if ! [[ "$CLIENT_COUNT" =~ ^[0-9]+$ ]] || [ "$CLIENT_COUNT" -lt 1 ]; then
-        error "客戶端數量必須是一個大於 0 的整數。"
-    fi
 }
 
 # 設定 IP 轉發
@@ -359,8 +353,12 @@ generate_client_packages() {
         return
     fi
 
-    if [ -z "$CLIENT_COUNT" ]; then read -rp "請輸入要新增的客戶端數量 [預設: 1]: " -e -i "1" CLIENT_COUNT < /dev/tty; fi
-    if ! [[ "$CLIENT_COUNT" =~ ^[0-9]+$ ]] || [ "$CLIENT_COUNT" -lt 1 ]; then error "客戶端數量必須是一個大於 0 的整數。"; fi
+    if [ -z "$CLIENT_COUNT" ]; then read -rp "請輸入要產生的客戶端數量 [預設: 1]: " -e -i "1" CLIENT_COUNT < /dev/tty; else log "使用參數產生的客戶端數量: $CLIENT_COUNT"; fi
+
+    # --- 驗證 ---
+    if ! [[ "$CLIENT_COUNT" =~ ^[0-9]+$ ]] || [ "$CLIENT_COUNT" -lt 1 ]; then
+        error "客戶端數量必須是一個大於 0 的整數。"
+    fi
 
     local IP_BASE
     IP_BASE=$(echo "$WG_SUBNET" | cut -d '.' -f 1-3)
