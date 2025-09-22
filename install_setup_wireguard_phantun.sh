@@ -450,25 +450,37 @@ PersistentKeepalive = 25" > "$CLIENT_DIR/wg0.conf"
         qrencode -t ANSIUTF8 -o "$CLIENT_DIR/wg0.png" < "$CLIENT_DIR/wg0.conf"
         
         local copy_choice
-        read -rp "是否顯示將 '$CLIENT_NAME' 設定檔拷貝到遠端設備的 scp 指令? [y/N]: " -e copy_choice < /dev/tty
+        read -rp "是否要立即將 '$CLIENT_NAME' 的設定檔拷貝到遠端設備? [y/N]: " -e copy_choice < /dev/tty
         if [[ "$copy_choice" =~ ^[Yy]$ ]]; then
             # 使用 local 變數以避免意外修改全域變數
             local current_remote_user_host="$REMOTE_USER_HOST"
-            local remote_dir_name
             if [ -z "$current_remote_user_host" ]; then
                 read -rp "請輸入遠端設備的使用者和 IP (例如: user@192.168.1.100): " -e current_remote_user_host < /dev/tty
             else
                 log "使用參數提供的遠端使用者和主機: $current_remote_user_host"
             fi
+
             local current_server_name="$SERVER_NAME"
             if [ -z "$current_server_name" ]; then
                 read -rp "選擇要設定的伺服器名稱 (對應 /root/wireguard-peers/ 下的資料夾名稱) [預設: server1]: " -e -i "server1" current_server_name < /dev/tty
             else
                 log "使用參數提供的伺服器名稱: $current_server_name"
             fi
+
             if [ -n "$current_remote_user_host" ] && [ -n "$current_server_name" ]; then
-                log "請執行以下指令來拷貝設定檔目錄 (這對於設定另一台伺服器作為 peer 特別有用):"
-                warn "scp -r \"$CLIENT_DIR\" \"${current_remote_user_host}:/root/wireguard-peers/${current_server_name}\""
+                local remote_path="/root/wireguard-peers/${current_server_name}"
+                log "正在嘗試將設定檔拷貝到 ${current_remote_user_host}:${remote_path}..."
+                
+                # 嘗試建立遠端目錄並拷貝檔案
+                if ssh "${current_remote_user_host}" "mkdir -p '${remote_path}'" && \
+                   scp -r "${CLIENT_DIR}/*" "${current_remote_user_host}:${remote_path}/*"; then
+                    log "✅ 檔案成功拷貝到遠端設備。"
+                else
+                    warn "自動拷貝檔案失敗。這可能是因為需要密碼認證或 SSH 金鑰未設定。"
+                    warn "請在遠端設備上手動執行以下指令來完成設定："
+                    warn "ssh ${current_remote_user_host} \"mkdir -p '${remote_path}'\""
+                    warn "scp -r \"${CLIENT_DIR}/\" \"${current_remote_user_host}:${remote_path}/\""
+                fi
             fi
         fi
 
