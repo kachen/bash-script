@@ -51,6 +51,7 @@ usage() {
     echo "  --dns <ip>              提供給客戶端的 DNS 伺服器"
     echo "  --clients <count>       要產生的客戶端數量"
     echo "  --client-phantun-port <port> 客戶端 Phantun 監聽的本地 UDP 埠"
+    echo "  --server-name <name>    選擇要連線的伺服器名稱"
     echo "  --add-clients           僅執行新增客戶端的步驟"
     echo "  --set-peer              僅執行新增可選的 WireGuard peer 和 phantun-client 服務的步驟"
     echo "  -h, --help              顯示此幫助訊息"
@@ -395,15 +396,23 @@ PersistentKeepalive = 25" > "$CLIENT_DIR/wg0.conf"
         local copy_choice
         read -rp "是否顯示將 '$CLIENT_NAME' 設定檔拷貝到遠端設備的 scp 指令? [y/N]: " -e copy_choice < /dev/tty
         if [[ "$copy_choice" =~ ^[Yy]$ ]]; then
-            local remote_user_host
+            # 使用 local 變數以避免意外修改全域變數
+            local current_remote_user_host="$REMOTE_USER_HOST"
             local remote_dir_name
-            read -rp "請輸入遠端設備的使用者和 IP (例如: user@192.168.1.100): " -e remote_user_host < /dev/tty
-            if [ -n "$remote_user_host" ]; then
-                # 詢問在遠端設備上要使用的目錄名稱，預設為本機的主機名稱
-                read -rp "請輸入在遠端設備上存放此設定的目錄名稱 [預設: $(hostname -s)]: " -e -i "$(hostname -s)" remote_dir_name < /dev/tty
-
+            if [ -z "$current_remote_user_host" ]; then
+                read -rp "請輸入遠端設備的使用者和 IP (例如: user@192.168.1.100): " -e current_remote_user_host < /dev/tty
+            else
+                log "使用參數提供的遠端使用者和主機: $current_remote_user_host"
+            fi
+            local current_server_name="$SERVER_NAME"
+            if [ -z "$current_server_name" ]; then
+                read -rp "選擇要設定的伺服器名稱 (對應 /root/wireguard-peers/ 下的資料夾名稱) [預設: server1]: " -e -i "server1" current_server_name < /dev/tty
+            else
+                log "使用參數提供的伺服器名稱: $current_server_name"
+            fi
+            if [ -n "$current_remote_user_host" ] && [ -n "$current_server_name" ]; then
                 log "請執行以下指令來拷貝設定檔目錄 (這對於設定另一台伺服器作為 peer 特別有用):"
-                warn "scp -r \"$CLIENT_DIR\" \"${remote_user_host}:/root/wireguard-peers/${remote_dir_name}\""
+                warn "scp -r \"$CLIENT_DIR\" \"${current_remote_user_host}:/root/wireguard-peers/${current_server_name}\""
             fi
         fi
 
@@ -473,8 +482,11 @@ setup_peer_client_service() {
     fi
 
     log "--- 開始設定 Phantun Client 服務 ---"
-    local SERVER_NAME
-    read -rp "請輸入要設定的客戶端名稱 (對應 /root/wireguard-peers/ 下的資料夾名稱) [預設: server1]: " -e -i "server1" SERVER_NAME < /dev/tty
+    if [ -z "$SERVER_NAME" ]; then
+        read -rp "選擇要連線的伺服器名稱 (對應 /root/wireguard-peers/ 下的資料夾名稱) [預設: server1]: " -e -i "server1" SERVER_NAME < /dev/tty
+    else
+        log "使用參數提供的伺服器名稱: $SERVER_NAME"
+    fi
 
     local SERVER_DIR="/root/wireguard-peers/$SERVER_NAME"
     local WG_CONF_PATH="$SERVER_DIR/wg0.conf"
@@ -574,6 +586,8 @@ main() {
     CLIENT_COUNT=""
     WG_PORT=""
     CLIENT_PHANTUN_PORT=""
+    SERVER_NAME=""
+    REMOTE_USER_HOST=""
     SET_PEER_SERVICE_ONLY=false
     ADD_CLIENTS_ONLY=false
 
@@ -589,6 +603,8 @@ main() {
             --dns) CLIENT_DNS="$2"; shift 2 ;;
             --clients) CLIENT_COUNT="$2"; shift 2 ;;
             --client-phantun-port) CLIENT_PHANTUN_PORT="$2"; shift 2 ;;
+            --server-name) SERVER_NAME="$2"; shift 2 ;;
+            --remote-user-host) REMOTE_USER_HOST="$2"; shift 2 ;;
             --add-clients) ADD_CLIENTS_ONLY=true; shift 1 ;;
             --set-peer) SET_PEER_SERVICE_ONLY=true; shift 1 ;;
             -h|--help) usage; exit 0 ;;
