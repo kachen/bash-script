@@ -210,8 +210,15 @@ get_user_input() {
         while true; do
             read -rp "請輸入 Phantun 監聽的 TCP 埠 (建議 15004) [預設: 15004]: " -e -i "15004" PHANTUN_PORT < /dev/tty
             if ss -lnt | grep -q ":$PHANTUN_PORT\b"; then
-                warn "TCP 埠 $PHANTUN_PORT 已被佔用，請選擇其他埠。"
-                PHANTUN_PORT="" # 重置以便循環
+                warn "TCP 埠 $PHANTUN_PORT 似乎已被佔用。"
+                local use_anyway
+                read -rp "您確定要繼續使用此埠嗎？ (這可能會導致衝突) [y/N]: " -e use_anyway < /dev/tty
+                if [[ "$use_anyway" =~ ^[Yy]$ ]]; then
+                    warn "使用者選擇繼續使用可能被佔用的埠 $PHANTUN_PORT。"
+                    break
+                else
+                    PHANTUN_PORT="" # 重置以便循環，要求新埠
+                fi
             else
                 break
             fi
