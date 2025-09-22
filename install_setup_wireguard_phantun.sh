@@ -50,11 +50,47 @@ usage() {
     echo "  --wg-subnet <cidr>      WireGuard 的虛擬網段"
     echo "  --dns <ip>              提供給客戶端的 DNS 伺服器"
     echo "  --clients <count>       要產生的客戶端數量"
-    echo "  --client-phantun-port <port> 客戶端 Phantun 監聽的本地 UDP 埠"
-    echo "  --server-name <name>    選擇要連線的伺服器名稱"
+    echo "  --client-name <name>    要產生的客戶端名稱 (當客戶端數量為 1 時)"
+    echo "  --client-ip <ip>        要產生的客戶端 IP (當客戶端數量為 1 時)"
+    echo "  --server-name <name>    選擇要連線或是當前要設定的伺服器名稱"
     echo "  --add-clients           僅執行新增客戶端的步驟"
     echo "  --set-peer              僅執行新增可選的 WireGuard peer 和 phantun-client 服務的步驟"
     echo "  -h, --help              顯示此幫助訊息"
+}
+
+# 清理現有的 WireGuard 介面及其設定
+cleanup_existing_interface() {
+    local if_name="$1"
+    log "正在清理現有的介面 '$if_name' 及其設定..."
+
+    # 停止並禁用相關服務
+    if systemctl is-active --quiet "wg-quick@${if_name}.service"; then
+        log "正在停止 wg-quick@${if_name}.service..."
+        systemctl stop "wg-quick@${if_name}.service"
+    fi
+    if systemctl is-enabled --quiet "wg-quick@${if_name}.service"; then
+        log "正在禁用 wg-quick@${if_name}.service..."
+        systemctl disable "wg-quick@${if_name}.service"
+    fi
+
+    if systemctl is-active --quiet "phantun-server@${if_name}.service"; then
+        log "正在停止 phantun-server@${if_name}.service..."
+        systemctl stop "phantun-server@${if_name}.service"
+    fi
+    if systemctl is-enabled --quiet "phantun-server@${if_name}.service"; then
+        log "正在禁用 phantun-server@${if_name}.service..."
+        systemctl disable "phantun-server@${if_name}.service"
+    fi
+    
+    # 移除設定檔
+    log "正在移除設定檔..."
+    rm -f "/etc/wireguard/${if_name}.conf" "/etc/wireguard/${if_name}_private.key" "/etc/wireguard/${if_name}_public.key"
+    rm -f "/etc/phantun/${if_name}.server"
+
+    # 重新載入 systemd 以確保服務狀態更新
+    systemctl daemon-reload
+
+    log "清理完成。"
 }
 
 # 檢查 root 權限
@@ -189,16 +225,25 @@ get_user_input() {
     if [ -z "$WG_INTERFACE" ]; then
         while true; do
             read -rp "請輸入 WireGuard 介面名稱 [預設: wg0]: " -e -i "wg0" WG_INTERFACE < /dev/tty
-            if ip link show "$WG_INTERFACE" &>/dev/null; then
-                warn "介面 '$WG_INTERFACE' 已存在，請選擇其他名稱。"
-                WG_INTERFACE="" # 重置以便循環
+            if [ -e "/sys/class/net/$WG_INTERFACE" ]; then
+                warn "介面 '$WG_INTERFACE' 已存在。您是否要移除它並繼續設定？"
+                warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務。"
+                local choice
+                read -rp "確定要移除並重建嗎？ [y/N]: " -e choice < /dev/tty
+                if [[ "$choice" =~ ^[Yy]$ ]]; then
+                    cleanup_existing_interface "$WG_INTERFACE"
+                    break
+                else
+                    warn "操作已取消。請選擇一個不同的介面名稱。"
+                    WG_INTERFACE="" # 重置以便循環
+                fi
             else
                 break
             fi
         done
     else
         log "使用參數提供的 WireGuard 介面名稱: $WG_INTERFACE"
-        if ip link show "$WG_INTERFACE" &>/dev/null; then error "介面 '$WG_INTERFACE' 已存在。"; fi
+        if [ -e "/sys/class/net/$WG_INTERFACE" ]; then error "介面 '$WG_INTERFACE' 已存在。請使用互動模式來移除它，或指定一個不同的介面名稱。"; fi
     fi
 
     # --- WireGuard 內部 UDP 埠 ---
@@ -341,12 +386,23 @@ generate_client_packages() {
         echo # 為每個客戶端增加空行以提高可讀性
         log "--- 正在設定新客戶端 ($i/$CLIENT_COUNT) ---"
 
-        # 讓使用者自訂客戶端名稱和 IP
         local CLIENT_NAME
-        read -rp "請輸入客戶端名稱 [預設: $default_client_name]: " -e -i "$default_client_name" CLIENT_NAME < /dev/tty
         local CLIENT_IP
-        read -rp "請輸入 '$CLIENT_NAME' 的 IP 位址 [預設: $default_client_ip]: " -e -i "$default_client_ip" CLIENT_IP < /dev/tty
 
+        # 如果 CLIENT_COUNT 為 1 且提供了參數，則使用它們
+        if [ "$CLIENT_COUNT" -eq 1 ] && [ -n "$CLIENT_NAME_PARAM" ]; then
+            CLIENT_NAME="$CLIENT_NAME_PARAM"
+            log "使用參數提供的客戶端名稱: $CLIENT_NAME"
+        else
+            read -rp "請輸入客戶端名稱 [預設: $default_client_name]: " -e -i "$default_client_name" CLIENT_NAME < /dev/tty
+        fi
+
+        if [ "$CLIENT_COUNT" -eq 1 ] && [ -n "$CLIENT_IP_PARAM" ]; then
+            CLIENT_IP="$CLIENT_IP_PARAM"
+            log "使用參數提供的客戶端 IP: $CLIENT_IP"
+        else
+            read -rp "請輸入 '$CLIENT_NAME' 的 IP 位址 [預設: $default_client_ip]: " -e -i "$default_client_ip" CLIENT_IP < /dev/tty
+        fi
         # --- 客戶端 Phantun UDP 埠 ---
         # 根據客戶端 IP 產生一個可預測的預設埠號
         # 例如: IP 10.21.12.2 -> Port 12002
@@ -560,7 +616,8 @@ setup_peer_client_service() {
         done
 
         log "正在於 /etc/phantun/$SERVER_NAME.client 建立客戶端設定檔"
-        echo "--local = \"127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT\" --remote = \"$PHANTUN_REMOTE_SERVER\"" > "/etc/phantun/$SERVER_NAME.client"
+        echo "--local = \"127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT\"
+--remote = \"$PHANTUN_REMOTE_SERVER\"" > "/etc/phantun/$SERVER_NAME.client"
 
         log "正在重新載入 systemd 並啟動 phantun-client@$SERVER_NAME.service..."
         systemctl daemon-reload
@@ -585,6 +642,8 @@ main() {
     CLIENT_DNS=""
     CLIENT_COUNT=""
     WG_PORT=""
+    CLIENT_NAME_PARAM=""
+    CLIENT_IP_PARAM=""
     CLIENT_PHANTUN_PORT=""
     SERVER_NAME=""
     REMOTE_USER_HOST=""
@@ -602,7 +661,8 @@ main() {
             --wg-subnet) WG_SUBNET="$2"; shift 2 ;;
             --dns) CLIENT_DNS="$2"; shift 2 ;;
             --clients) CLIENT_COUNT="$2"; shift 2 ;;
-            --client-phantun-port) CLIENT_PHANTUN_PORT="$2"; shift 2 ;;
+            --client-name) CLIENT_NAME_PARAM="$2"; shift 2 ;;
+            --client-ip) CLIENT_IP_PARAM="$2"; shift 2 ;;
             --server-name) SERVER_NAME="$2"; shift 2 ;;
             --remote-user-host) REMOTE_USER_HOST="$2"; shift 2 ;;
             --add-clients) ADD_CLIENTS_ONLY=true; shift 1 ;;
