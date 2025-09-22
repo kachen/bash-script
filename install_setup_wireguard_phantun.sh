@@ -473,13 +473,13 @@ PersistentKeepalive = 25" > "$CLIENT_DIR/wg0.conf"
                 
                 # 嘗試建立遠端目錄並拷貝檔案
                 if ssh "${current_remote_user_host}" "mkdir -p '${remote_path}'" && \
-                   scp -r "${CLIENT_DIR}/*" "${current_remote_user_host}:${remote_path}/"; then
+                   scp -r ${CLIENT_DIR}/\* "${current_remote_user_host}:${remote_path}/"; then
                     log "✅ 檔案成功拷貝到遠端設備。"
                 else
                     warn "自動拷貝檔案失敗。這可能是因為需要密碼認證或 SSH 金鑰未設定。"
                     warn "請在遠端設備上手動執行以下指令來完成設定："
                     warn "ssh ${current_remote_user_host} \"mkdir -p '${remote_path}'\""
-                    warn "scp -r \"${CLIENT_DIR}/\" \"${current_remote_user_host}:${remote_path}/\""
+                    warn "scp -r ${CLIENT_DIR}/\* \"${current_remote_user_host}:${remote_path}/\""
                 fi
             fi
         fi
