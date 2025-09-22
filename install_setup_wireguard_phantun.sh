@@ -398,7 +398,7 @@ generate_client_packages() {
         fi
 
         if [ "$CLIENT_COUNT" -eq 1 ] && [ -n "$CLIENT_IP_PARAM" ]; then
-            CLIENT_IP="$CLIENT_IP_PARAM"
+            CLIENT_IP="${CLIENT_IP_PARAM%/*}"
             log "使用參數提供的客戶端 IP: $CLIENT_IP"
         else
             read -rp "請輸入 '$CLIENT_NAME' 的 IP 位址 [預設: $default_client_ip]: " -e -i "$default_client_ip" CLIENT_IP < /dev/tty
