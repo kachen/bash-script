@@ -441,7 +441,7 @@ AllowedIPs = $SERVER_WG_IP/32
 PersistentKeepalive = 25" > "$CLIENT_DIR/wg0.conf"
 
         # 建立客戶端 Phantun 設定檔
-        echo "--local 127.0.0.1:$CURRENT_CLIENT_PHANTUN_PORT
+        echo "--local $CURRENT_CLIENT_PHANTUN_PORT
 --remote $SERVER_PUBLIC_IP:$PHANTUN_PORT" > "$CLIENT_DIR/phantun.client"
 
         # 產生 QR Code
