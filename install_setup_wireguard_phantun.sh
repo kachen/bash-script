@@ -472,7 +472,7 @@ PersistentKeepalive = 25" > "$CLIENT_DIR/wg0.conf"
                 log "正在嘗試將設定檔拷貝到 ${current_remote_user_host}:${remote_path}..."
                 
                 # 嘗試建立遠端目錄並拷貝檔案
-                if ssh "${current_remote_user_host}" "mkdir -p '${remote_path}'" && \
+                if ssh "${current_remote_user_host}" "mkdir -p '${remote_path}'"; \
                    scp -r ${CLIENT_DIR}/* "${current_remote_user_host}:${remote_path}/"; then
                     log "✅ 檔案成功拷貝到遠端設備。"
                 else
