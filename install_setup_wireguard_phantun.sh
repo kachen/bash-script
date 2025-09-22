@@ -409,7 +409,7 @@ generate_client_packages() {
         local fourth_octet
         fourth_octet=$(echo "$SERVER_WG_IP" | cut -d '.' -f 4)
         local default_client_phantun_port
-        default_client_phantun_port=$(printf "%2d%03d" "$third_octet" "$fourth_octet")
+        default_client_phantun_port=$(printf "%d%03d" "$third_octet" "$fourth_octet")
 
         read -rp "請輸入 '$CLIENT_NAME' 的 Phantun 本地 UDP 埠 [預設: $default_client_phantun_port]: " -e -i "$default_client_phantun_port" CURRENT_CLIENT_PHANTUN_PORT < /dev/tty
         # 建立客戶端目錄
@@ -618,8 +618,8 @@ setup_peer_client_service() {
         done
 
         log "正在於 /etc/phantun/$SERVER_NAME.client 建立客戶端設定檔"
-        echo "--local = \"127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT\"
---remote = \"$PHANTUN_REMOTE_SERVER\"" > "/etc/phantun/$SERVER_NAME.client"
+        echo "--local $PHANTUN_CLIENT_LOCAL_PORT
+--remote $PHANTUN_REMOTE_SERVER" > "/etc/phantun/$SERVER_NAME.client"
 
         log "正在重新載入 systemd 並啟動 phantun-client@$SERVER_NAME.service..."
         systemctl daemon-reload
