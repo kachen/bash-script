@@ -265,7 +265,17 @@ get_user_input() {
         done
     else
         log "使用參數提供的 WireGuard 介面名稱: $WG_INTERFACE"
-        if [ -e "/sys/class/net/$WG_INTERFACE" ]; then error "介面 '$WG_INTERFACE' 已存在。請使用互動模式來移除它，或指定一個不同的介面名稱。"; fi
+        if [ -e "/sys/class/net/$WG_INTERFACE" ]; then
+            warn "參數指定的介面 '$WG_INTERFACE' 已存在。您是否要移除它並繼續設定？"
+            warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務。"
+            local choice
+            read -rp "確定要移除並重建嗎？ [y/N]: " -e choice < /dev/tty
+            if [[ "$choice" =~ ^[Yy]$ ]]; then
+                cleanup_existing_interface "$WG_INTERFACE"
+            else
+                error "操作已取消。請指定一個不同的介面名稱，或移除參數以進入完整互動模式。"
+            fi
+        fi
     fi
 
     # --- WireGuard 內部 UDP 埠 ---
