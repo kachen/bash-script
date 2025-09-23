@@ -53,6 +53,8 @@ usage() {
     echo "  --client-name <name>    要產生的客戶端名稱 (當客戶端數量為 1 時)"
     echo "  --client-ip <ip>        要產生的客戶端 IP (當客戶端數量為 1 時)"
     echo "  --server-name <name>    選擇要連線或是當前要設定的伺服器名稱"
+    echo "  --remote-user-host     <user@host> 遠端設備的使用者和主機，用於自動拷貝設定檔"
+    echo "  --remote-user-password <password> 遠端設備的密碼，用於自動拷貝設定檔"
     echo "  --add-clients           僅執行新增客戶端的步驟"
     echo "  --set-peer              僅執行新增可選的 WireGuard peer 和 phantun-client 服務的步驟"
     echo "  -h, --help              顯示此幫助訊息"
@@ -128,17 +130,17 @@ install_dependencies() {
     case "$OS" in
         ubuntu|debian)
             apt-get update
-            apt-get install -y curl unzip qrencode resolvconf
+            apt-get install -y curl unzip qrencode sshpass resolvconf
             if [ "$install_wg" = true ]; then apt-get install -y wireguard; fi
             ;;
         centos|rhel|rocky|almalinux)
             if command -v dnf &> /dev/null; then
                 dnf install -y epel-release
-                dnf install -y curl unzip qrencode
+                dnf install -y curl unzip qrencode sshpass
                 if [ "$install_wg" = true ]; then dnf install -y wireguard-tools; fi
             else # CentOS 7
                 yum install -y epel-release
-                yum install -y curl unzip qrencode
+                yum install -y curl unzip qrencode sshpass
                 if [ "$install_wg" = true ]; then
                     yum install -y https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm
                     yum install -y kmod-wireguard wireguard-tools
@@ -146,15 +148,15 @@ install_dependencies() {
             fi
             ;;
         fedora)
-            dnf install -y curl unzip qrencode
+            dnf install -y curl unzip qrencode sshpass
             if [ "$install_wg" = true ]; then dnf install -y wireguard-tools; fi
             ;;
         arch)
-            pacman -Syu --noconfirm curl unzip qrencode
+            pacman -Syu --noconfirm curl unzip qrencode sshpass
             if [ "$install_wg" = true ]; then pacman -S --noconfirm wireguard-tools; fi
             ;;
         *)
-            error "不支援的作業系統: $OS。請手動安裝 curl, unzip, qrencode, wireguard-tools。"
+            error "不支援的作業系統: $OS。請手動安裝 curl, unzip, qrencode, sshpass, wireguard-tools。"
             ;;
     esac
     log "相依套件安裝完成。"
@@ -296,7 +298,7 @@ get_user_input() {
 
     # --- 其他設定 ---
     if [ -z "$WG_SUBNET" ]; then read -rp "請輸入 WireGuard 的虛擬網段 (CIDR) [預設: 10.21.12.1/24]: " -e -i "10.21.12.1/24" WG_SUBNET < /dev/tty; else log "使用參數提供的虛擬網段: $WG_SUBNET"; fi
-    if [ -z "$CLIENT_DNS" ]; then read -rp "請輸入要提供給客戶端的 DNS 伺服器 [預設: 1.1.1.1]: " -e -i "1.1.1.1" CLIENT_DNS < /dev/tty; else log "使用參數提供的 DNS: $CLIENT_DNS"; fi
+    if [ -z "$CLIENT_DNS" ]; then read -rp "請輸入要提供給客戶端的 DNS 伺服器 [預設: 8.8.4.4]: " -e -i "8.8.4.4" CLIENT_DNS < /dev/tty; else log "使用參數提供的 DNS: $CLIENT_DNS"; fi
 }
 
 # 設定 IP 轉發
@@ -373,7 +375,7 @@ load_existing_server_config() {
 
     # 獲取執行此操作所需的其餘資訊
     if [ -z "$SERVER_PUBLIC_IP" ]; then local default_ip; default_ip=$(curl -s https://ipinfo.io/ip); read -rp "請確認伺服器公網 IP 位址 [預設: $default_ip]: " -e -i "$default_ip" SERVER_PUBLIC_IP < /dev/tty; fi
-    if [ -z "$CLIENT_DNS" ]; then read -rp "請輸入要提供給客戶端的 DNS 伺服器 [預設: 1.1.1.1]: " -e -i "1.1.1.1" CLIENT_DNS < /dev/tty; fi
+    if [ -z "$CLIENT_DNS" ]; then read -rp "請輸入要提供給客戶端的 DNS 伺服器 [預設: 8.8.4.4]: " -e -i "8.8.4.4" CLIENT_DNS < /dev/tty; fi
 }
 
 # 產生客戶端設定包
@@ -486,6 +488,7 @@ PersistentKeepalive = 25" > "$CLIENT_DIR/wg0.conf"
         if [[ "$copy_choice" =~ ^[Yy]$ ]]; then
             # 使用 local 變數以避免意外修改全域變數
             local current_remote_user_host="$REMOTE_USER_HOST"
+            local current_remote_user_password="$REMOTE_USER_PASSWORD"
             if [ -z "$current_remote_user_host" ]; then
                 read -rp "請輸入遠端設備的使用者和 IP (例如: user@192.168.1.100): " -e current_remote_user_host < /dev/tty
             else
@@ -502,16 +505,28 @@ PersistentKeepalive = 25" > "$CLIENT_DIR/wg0.conf"
             if [ -n "$current_remote_user_host" ] && [ -n "$current_server_name" ]; then
                 local remote_path="/root/wireguard-peers/${current_server_name}"
                 log "正在嘗試將設定檔拷貝到 ${current_remote_user_host}:${remote_path}..."
-                
+
                 # 嘗試建立遠端目錄並拷貝檔案
-                if ssh "${current_remote_user_host}" "mkdir -p '${remote_path}'"; \
-                   scp -r ${CLIENT_DIR}/* "${current_remote_user_host}:${remote_path}/"; then
-                    log "✅ 檔案成功拷貝到遠端設備。"
+                if [ -n "$current_remote_user_password" ]; then
+                    # 如果提供了密碼，則對 ssh 和 scp 都使用 sshpass
+                    log "偵測到密碼，將使用 sshpass 進行認證。"
+                    if sshpass -p "${current_remote_user_password}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 "${current_remote_user_host}" "mkdir -p '${remote_path}'" && \
+                       sshpass -p "${current_remote_user_password}" scp -o StrictHostKeyChecking=no -o ConnectTimeout=5 -r ${CLIENT_DIR}/* "${current_remote_user_host}:${remote_path}/"; then
+                        log "✅ 檔案成功拷貝到遠端設備。"
+                    else
+                        warn "使用密碼自動拷貝檔案失敗。請檢查密碼、主機或網路連線。"
+                    fi
                 else
-                    warn "自動拷貝檔案失敗。這可能是因為需要密碼認證或 SSH 金鑰未設定。"
-                    warn "請在遠端設備上手動執行以下指令來完成設定："
-                    warn "ssh ${current_remote_user_host} \"mkdir -p '${remote_path}'\""
-                    warn "scp -r ${CLIENT_DIR}/* \"${current_remote_user_host}:${remote_path}/\""
+                    # 如果未提供密碼，則假定使用 SSH 金鑰認證
+                    if ssh -o ConnectTimeout=5 "${current_remote_user_host}" "mkdir -p '${remote_path}'" && \
+                       scp -o ConnectTimeout=5 -r ${CLIENT_DIR}/* "${current_remote_user_host}:${remote_path}/"; then
+                        log "✅ 檔案成功拷貝到遠端設備。"
+                    else
+                        warn "自動拷貝檔案失敗。請確認 SSH 金鑰是否已正確設定，或嘗試使用密碼參數 --remote-user-password。"
+                        warn "或手動執行以下指令來完成設定："
+                        warn "ssh ${current_remote_user_host} \"mkdir -p '${remote_path}'\""
+                        warn "scp -r ${CLIENT_DIR}/* \"${current_remote_user_host}:${remote_path}/\""
+                    fi
                 fi
             fi
         fi
@@ -709,6 +724,7 @@ main() {
     CLIENT_PHANTUN_PORT=""
     SERVER_NAME=""
     REMOTE_USER_HOST=""
+    REMOTE_USER_PASSWORD=""
     SET_PEER_SERVICE_ONLY=false
     ADD_CLIENTS_ONLY=false
 
@@ -726,6 +742,7 @@ main() {
             --client-name) CLIENT_NAME_PARAM="$2"; shift 2 ;;
             --client-ip) CLIENT_IP_PARAM="$2"; shift 2 ;;
             --server-name) SERVER_NAME="$2"; shift 2 ;;
+            --remote-user-password) REMOTE_USER_PASSWORD="$2"; shift 2 ;;
             --remote-user-host) REMOTE_USER_HOST="$2"; shift 2 ;;
             --add-clients) ADD_CLIENTS_ONLY=true; shift 1 ;;
             --set-peer) SET_PEER_SERVICE_ONLY=true; shift 1 ;;
