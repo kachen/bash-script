@@ -477,7 +477,7 @@ AllowedIPs = $SERVER_WG_IP/32
 PersistentKeepalive = 25" > "$CLIENT_DIR/wg0.conf"
 
         # 建立客戶端 Phantun 設定檔
-        echo "--local $CURRENT_CLIENT_PHANTUN_PORT
+        echo "--local 127.0.0.1:$CURRENT_CLIENT_PHANTUN_PORT
 --remote $SERVER_PUBLIC_IP:$PHANTUN_PORT" > "$CLIENT_DIR/phantun.client"
 
         # 產生 QR Code
@@ -695,7 +695,7 @@ setup_peer_client_service() {
         done
 
         log "正在於 /etc/phantun/$SERVER_NAME.client 建立客戶端設定檔"
-        echo "--local $PHANTUN_CLIENT_LOCAL_PORT
+        echo "--local 127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT
 --remote $PHANTUN_REMOTE_SERVER" > "/etc/phantun/$SERVER_NAME.client"
 
         log "正在重新載入 systemd 並啟動 phantun-client@$SERVER_NAME.service..."
