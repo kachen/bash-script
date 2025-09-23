@@ -552,12 +552,11 @@ setup_services() {
 [Unit]
 Description=Phantun Server
 After=network.target
-Wants=wg-quick@$WG_INTERFACE.service
 
 [Service]
 User=root
 ExecStartPre=/usr/sbin/iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 15004 -j DNAT --to-destination 192.168.201.2
-ExecStart=/usr/local/bin/phantun_server $(for i in $(cat /etc/phantun/%i.server); do tmp="$tmp $i"; done; echo $tmp)
+ExecStart=/bin/bash -c '/usr/local/bin/phantun_server $(</etc/phantun/%i.server)'
 ExecStopPost=/usr/sbin/iptables -t nat -D PREROUTING -p tcp -i eth0 --dport 15004 -j DNAT --to-destination 192.168.201.2
 Restart=always
 RestartSec=3
@@ -576,7 +575,7 @@ After=network.target
 Type=simple
 User=root
 ExecStartPre=/usr/sbin/iptables -t nat -A POSTROUTING -s 192.168.200.0/30 -j MASQUERADE
-ExecStart=/usr/local/bin/phantun_client $(for i in $(cat /etc/phantun/%i.client); do tmp="$tmp $i"; done; echo $tmp)
+ExecStart=/bin/bash -c '/usr/local/bin/phantun_client $(</etc/phantun/%i.client)'
 ExecStopPost=/usr/sbin/iptables -t nat -D POSTROUTING -s 192.168.200.0/30 -j MASQUERADE
 Restart=always
 RestartSec=3
