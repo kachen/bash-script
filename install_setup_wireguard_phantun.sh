@@ -115,28 +115,43 @@ detect_distro() {
 
 # 安裝相依套件
 install_dependencies() {
-    log "正在安裝必要的相依套件 (curl, unzip, qrencode)..."
+    log "正在檢查並安裝必要的相依套件..."
+
+    if command -v wg &> /dev/null; then
+        log "WireGuard 已安裝，將跳過其安裝步驟。"
+        local install_wg=false
+    else
+        log "正在準備安裝 WireGuard..."
+        local install_wg=true
+    fi
+
     case "$OS" in
         ubuntu|debian)
             apt-get update
-            apt-get install -y curl unzip qrencode wireguard resolvconf
+            apt-get install -y curl unzip qrencode resolvconf
+            if [ "$install_wg" = true ]; then apt-get install -y wireguard; fi
             ;;
         centos|rhel|rocky|almalinux)
             if command -v dnf &> /dev/null; then
                 dnf install -y epel-release
-                dnf install -y curl unzip qrencode wireguard-tools
+                dnf install -y curl unzip qrencode
+                if [ "$install_wg" = true ]; then dnf install -y wireguard-tools; fi
             else # CentOS 7
                 yum install -y epel-release
                 yum install -y curl unzip qrencode
-                yum install -y https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm
-                yum install -y kmod-wireguard wireguard-tools
+                if [ "$install_wg" = true ]; then
+                    yum install -y https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm
+                    yum install -y kmod-wireguard wireguard-tools
+                fi
             fi
             ;;
         fedora)
-            dnf install -y curl unzip qrencode wireguard-tools
+            dnf install -y curl unzip qrencode
+            if [ "$install_wg" = true ]; then dnf install -y wireguard-tools; fi
             ;;
         arch)
-            pacman -Syu --noconfirm curl unzip qrencode wireguard-tools
+            pacman -Syu --noconfirm curl unzip qrencode
+            if [ "$install_wg" = true ]; then pacman -S --noconfirm wireguard-tools; fi
             ;;
         *)
             error "不支援的作業系統: $OS。請手動安裝 curl, unzip, qrencode, wireguard-tools。"
