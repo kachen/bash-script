@@ -604,6 +604,20 @@ setup_peer_client_service() {
             log "找到客戶端 AllowedIPs: $CLIENT_ALLOWED_IPS"
             log "找到客戶端 Endpoint: $CLIENT_ENDPOINT"
             # 設定 peer，包含 Endpoint，這樣伺服器就知道要透過本地 phantun client 將流量轉發出去
+            if [ -z "$WG_INTERFACE" ]; then
+                while true; do
+                    read -rp "請輸入 WireGuard 介面名稱 [預設: wg0]: " -e -i "wg0" WG_INTERFACE < /dev/tty
+                    if [ -e "/sys/class/net/$WG_INTERFACE" ]; then
+                        break
+                    else
+                        warn "介面 '$WG_INTERFACE' 不存在。請重新輸入！"
+                        WG_INTERFACE="" # 重置以便循環
+                    fi
+                done
+            else
+                log "使用參數提供的 WireGuard 介面名稱: $WG_INTERFACE"
+                if ! [ -e "/sys/class/net/$WG_INTERFACE" ]; then error "介面 '$WG_INTERFACE' 不存在。請指定一個不同的介面名稱。"; fi
+            fi
             wg set "$WG_INTERFACE" peer "$CLIENT_PUBLIC_KEY" \
                 allowed-ips "$CLIENT_ALLOWED_IPS" \
                 endpoint "$CLIENT_ENDPOINT"
