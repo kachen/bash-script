@@ -420,14 +420,14 @@ setup_peer_client_service() {
         log "使用參數提供的伺服器PORT: $SERVER_PORT"
     fi
     if [ -z "$SERVER_WG_SUBNET" ]; then
-        read -rp "輸入伺服器WG內網 [預設: 10.21.12.1/24]: " -e -i "10.21.12.1/24" SERVER_WG_SUBNET < /dev/tty
+        read -rp "輸入遠端伺服器 WireGaurd 內網 [預設: 10.21.12.1/24]: " -e -i "10.21.12.1/24" SERVER_WG_SUBNET < /dev/tty
     else
-        log "使用參數提供的伺服器WG內網: $SERVER_WG_SUBNET"
+        log "使用參數提供的遠端伺服器 WireGaurd 內網: $SERVER_WG_SUBNET"
     fi
     if [ -z "$WG_SUBNET" ]; then
-        read -rp "輸入伺服器WG內網 [預設: 10.21.12.1/24]: " -e -i "10.21.12.1/24" WG_SUBNET < /dev/tty
+        read -rp "輸入本機伺服器 WireGaurd 內網 [預設: 10.21.12.1/24]: " -e -i "10.21.12.1/24" WG_SUBNET < /dev/tty
     else
-        log "使用參數提供的伺服器WG內網: $WG_SUBNET"
+        log "使用參數提供的本機伺服器 WireGaurd 內網: $WG_SUBNET"
     fi
 
     # 從 WG_SUBNET (例如 10.21.12.1/24) 中提取伺服器的 IP 位址 (10.21.12.1)
@@ -494,8 +494,10 @@ setup_peer_client_service() {
     local ALLOWED_IPS
     CLIENT_PUBLIC_KEY=$(cat "$WG_DIR/$WG_INTERFACE"_public.key)
     CLIENT_ENDPOINT="127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT"
+    local LOCAL_WG_IP
+    LOCAL_WG_IP=${WG_SUBNET%/*}
 
-    if [ -n "$CLIENT_PUBLIC_KEY" ] && [ -n "$SERVER_WG_IP" ]; then
+    if [ -n "$CLIENT_PUBLIC_KEY" ] && [ -n "$LOCAL_WG_IP" ]; then
         local copy_choice
         read -rp "是否要立即將公鑰拷貝到遠端 $SERVER_NAME 的設定檔中? [y/N]: " -e copy_choice < /dev/tty
         if [[ "$copy_choice" =~ ^[Yy]$ ]]; then
@@ -508,7 +510,7 @@ setup_peer_client_service() {
             local remote_public_key=""
             if [ -n "$SERVER_HOST" ] && [ -n "$SERVER_PORT" ]; then
                 log "正在嘗試將公鑰 $CLIENT_PUBLIC_KEY 拷貝到 ${SERVER_HOST}:${SERVER_PORT}..."
-                ALLOWED_IPS="$SERVER_WG_IP/32"
+                ALLOWED_IPS="$LOCAL_WG_IP/32"
 
                 if [ -n "$SERVER_PASSWORD" ]; then
                     # 如果提供了密碼，則對 ssh 和 scp 都使用 sshpass
@@ -517,8 +519,8 @@ setup_peer_client_service() {
                         "wg set $WG_INTERFACE peer $CLIENT_PUBLIC_KEY allowed-ips $ALLOWED_IPS && cat /etc/wireguard/${WG_INTERFACE}_public.key")
                     
                     if [ -n "$remote_public_key" ]; then
-                        log "✅ 公鑰成功拷貝到遠端設備。"
-                        log "✅ 已成功從遠端設備取得公鑰。"
+                        log "✅ 公鑰成功拷貝到遠端伺服器。"
+                        log "✅ 已成功從遠端伺服器取得公鑰。"
                     else
                         warn "使用密碼自動拷貝檔案失敗。請檢查密碼、主機或網路連線。"
                     fi
@@ -528,8 +530,8 @@ setup_peer_client_service() {
                         "wg set $WG_INTERFACE peer $CLIENT_PUBLIC_KEY allowed-ips $ALLOWED_IPS && cat /etc/wireguard/${WG_INTERFACE}_public.key")
                     
                     if [ -n "$remote_public_key" ]; then
-                        log "✅ 公鑰成功拷貝到遠端設備。"
-                        log "✅ 已成功從遠端設備取得公鑰。"
+                        log "✅ 公鑰成功拷貝到遠端伺服器。"
+                        log "✅ 已成功從遠端伺服器取得公鑰。"
                     else
                         warn "使用密碼自動拷貝檔案失敗。請檢查密碼、主機或網路連線。"
                     fi
@@ -537,10 +539,8 @@ setup_peer_client_service() {
             fi
         fi
     fi
-    local LOCAL_WG_IP
-    LOCAL_WG_IP=${WG_SUBNET%/*}
-    if [ -n "$remote_public_key" ] && [ -n "$LOCAL_WG_IP" ] && [ -n "$CLIENT_ENDPOINT" ]; then
-        ALLOWED_IPS="$LOCAL_WG_IP/32"
+    if [ -n "$remote_public_key" ] && [ -n "$SERVER_WG_IP" ] && [ -n "$CLIENT_ENDPOINT" ]; then
+        ALLOWED_IPS="$SERVER_WG_IP/32"
         log "遠端公鑰: $remote_public_key"
         log "遠端 AllowedIPs: $ALLOWED_IPS"
         log "遠端 Endpoint: $CLIENT_ENDPOINT"
