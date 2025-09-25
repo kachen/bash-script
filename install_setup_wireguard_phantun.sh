@@ -585,7 +585,8 @@ main() {
             --server-name) SERVER_NAME="$2"; shift 2 ;;
             --server-wg-subnet) SERVER_WG_SUBNET="$2"; shift 2 ;;
             --server-host) SERVER_HOST="$2"; shift 2 ;;
-            --server-password) SERVER_PORT="$2"; shift 2 ;;
+            --server-port) SERVER_PORT="$2"; shift 2 ;;
+            --server-password) SERVER_PASSWORD="$2"; shift 2 ;;
             --set-peer) SET_PEER_SERVICE_ONLY=true; shift 1 ;;
             -h|--help) usage; exit 0 ;;
             *) error "未知選項: $1" ;;
