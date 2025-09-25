@@ -437,6 +437,7 @@ setup_peer_client_service() {
     local overwrite_existing_config=true
     local PHANTUN_DIR="/etc/phantun"
     local PHANTUN_CONF_PATH="$PHANTUN_DIR/$SERVER_NAME.client"
+    local PHANTUN_CLIENT_LOCAL_PORT
 
     if [ -f "$PHANTUN_CONF_PATH" ]; then
         local use_existing_choice
@@ -452,6 +453,7 @@ setup_peer_client_service() {
             fi
         else
             overwrite_existing_config=false
+            PHANTUN_CLIENT_LOCAL_PORT=$(grep -oP '127\.0\.0\.1:\K[0-9]+' "$PHANTUN_CONF_PATH")
         fi
     fi
 
@@ -466,7 +468,6 @@ setup_peer_client_service() {
         local default_client_phantun_port
         default_client_phantun_port=$(printf "%d%03d" "$third_octet" "$fourth_octet")
 
-        local PHANTUN_CLIENT_LOCAL_PORT
         while true; do
             read -rp "請輸入連接 '$SERVER_NAME' 的 phantun_client 在本地監聽的 UDP 埠 [預設: $default_client_phantun_port]: " -e -i "$default_client_phantun_port" PHANTUN_CLIENT_LOCAL_PORT < /dev/tty
             if ! ss -lnu | grep -q ":$PHANTUN_CLIENT_LOCAL_PORT\b"; then break; fi
