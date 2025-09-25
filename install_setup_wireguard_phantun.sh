@@ -441,7 +441,16 @@ setup_peer_client_service() {
     if [ -f "$PHANTUN_CONF_PATH" ]; then
         local use_existing_choice
         read -rp "在 $PHANTUN_CONF_PATH 中找到現有的設定檔，是否覆蓋? [y/N]: " -e -i "N" use_existing_choice < /dev/tty
-        if [[ ! "$use_existing_choice" =~ ^[Yy]$ ]]; then
+        if [[ "$use_existing_choice" =~ ^[Yy]$ ]]; then
+            if systemctl is-active --quiet "phantun-client@${SERVER_NAME}.service"; then
+                log "正在停止 phantun-client@${SERVER_NAME}.service..."
+                systemctl stop "phantun-client@${SERVER_NAME}.service"
+            fi
+            if systemctl is-enabled --quiet "phantun-client@${SERVER_NAME}.service"; then
+                log "正在禁用 phantun-client@${SERVER_NAME}.service..."
+                systemctl disable "phantun-client@${SERVER_NAME}.service"
+            fi
+        else
             overwrite_existing_config=false
         fi
     fi
