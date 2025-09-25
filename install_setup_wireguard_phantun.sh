@@ -525,7 +525,7 @@ setup_peer_client_service() {
                     # 如果提供了密碼，則對 ssh 和 scp 都使用 sshpass
                     log "偵測到密碼，將使用 sshpass 進行認證。"
                     remote_public_key=$(sshpass -p "${SERVER_PASSWORD}" ssh -p "$SERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=5 "${SERVER_HOST}" \
-                        "wg set $WG_INTERFACE peer $CLIENT_PUBLIC_KEY allowed-ips $ALLOWED_IPS && cat /etc/wireguard/${WG_INTERFACE}_public.key")
+                        "wg set $WG_INTERFACE peer $CLIENT_PUBLIC_KEY allowed-ips $ALLOWED_IPS && wg-quick save $WG_INTERFACE && wg show $WG_INTERFACE public-key")
                     
                     if [ -n "$remote_public_key" ]; then
                         log "✅ 公鑰成功拷貝到遠端伺服器。"
@@ -536,7 +536,7 @@ setup_peer_client_service() {
                 else
                     # 如果未提供密碼，則假定使用 SSH 金鑰認證
                     remote_public_key=$(ssh -p "$SERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=5 "${SERVER_HOST}" \
-                        "wg set $WG_INTERFACE peer $CLIENT_PUBLIC_KEY allowed-ips $ALLOWED_IPS && cat /etc/wireguard/${WG_INTERFACE}_public.key")
+                        "wg set $WG_INTERFACE peer $CLIENT_PUBLIC_KEY allowed-ips $ALLOWED_IPS && wg show $WG_INTERFACE public-key")
                     
                     if [ -n "$remote_public_key" ]; then
                         log "✅ 公鑰成功拷貝到遠端伺服器。"
@@ -546,6 +546,15 @@ setup_peer_client_service() {
                     fi
                 fi
             fi
+        else
+            # 優先從現有的 wg 設定中查找遠端公鑰
+            local remote_public_key=""
+            local search_ip="$SERVER_WG_IP/32"
+            log "正在檢查 '$WG_INTERFACE' 中是否已存在 IP 為 '$search_ip' 的 peer..."
+            
+            # 使用 wg show dump 查找，該格式穩定可靠
+            # awk: 逐行檢查，如果第4欄位等於目標IP，就印出第1欄位(公鑰)並退出
+            remote_public_key=$(wg show "$WG_INTERFACE" dump | awk -v ip="$search_ip" '$4 == ip {print $1; exit}')            
         fi
     fi
     if [ -n "$remote_public_key" ] && [ -n "$SERVER_WG_IP" ] && [ -n "$CLIENT_ENDPOINT" ]; then
@@ -559,6 +568,19 @@ setup_peer_client_service() {
             endpoint "$CLIENT_ENDPOINT"
         log "已將 '$SERVER_NAME' 作為 peer 新增至 '$WG_INTERFACE' 介面。"
         wg-quick save "$WG_INTERFACE"
+
+        log "正在測試與遠端伺服器 ($SERVER_WG_IP) 的連線..."
+        # -c 3: 發送 3 個封包
+        # -W 5: 等待 5 秒回應
+        if ping -c 3 -W 5 "$SERVER_WG_IP" &> /dev/null; then
+            log "✅ 與 $SERVER_WG_IP 的連線測試成功！"
+        else
+            warn "⚠️ 與 $SERVER_WG_IP 的連線測試失敗。請檢查以下項目："
+            warn "  1. 遠端伺服器 ($SERVER_HOST) 的 phantun-server 服務是否正常運作。"
+            warn "  2. 本機的 phantun-client@$SERVER_NAME 服務是否正常運作。"
+            warn "  3. 雙方的防火牆設定是否正確 (特別是遠端伺服器的 TCP 埠 15004)。"
+            warn "  4. 雙方的金鑰與 IP 設定是否匹配。"
+        fi
     else
         warn "無法從解析出完整的遠端資訊 (公鑰、AllowedIPs、Endpoint)，跳過新增 Peer。"
     fi
