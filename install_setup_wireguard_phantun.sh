@@ -414,11 +414,6 @@ setup_peer_client_service() {
     else
         log "使用參數提供的伺服器HOST: $SERVER_HOST"
     fi
-    if [ -z "$SERVER_PORT" ]; then
-        read -rp "輸入要連線的伺服器PORT [預設: 22]: " -e -i "22" SERVER_PORT < /dev/tty
-    else
-        log "使用參數提供的伺服器PORT: $SERVER_PORT"
-    fi
     if [ -z "$SERVER_WG_SUBNET" ]; then
         read -rp "輸入遠端伺服器 WireGaurd 內網 [預設: 10.21.12.1/24]: " -e -i "10.21.12.1/24" SERVER_WG_SUBNET < /dev/tty
     else
@@ -511,6 +506,11 @@ setup_peer_client_service() {
         local copy_choice
         read -rp "是否要立即將公鑰拷貝到遠端 $SERVER_NAME 的設定檔中? [y/N]: " -e copy_choice < /dev/tty
         if [[ "$copy_choice" =~ ^[Yy]$ ]]; then
+            if [ -z "$SERVER_PORT" ]; then
+                read -rp "輸入要連線的伺服器PORT [預設: 22]: " -e -i "22" SERVER_PORT < /dev/tty
+            else
+                log "使用參數提供的伺服器PORT: $SERVER_PORT"
+            fi
             if [ -z "$SERVER_PASSWORD" ]; then
                 read -rp "輸入要連線的伺服器PASSWORD: " -e SERVER_PASSWORD < /dev/tty
             else
