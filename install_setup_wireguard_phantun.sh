@@ -565,7 +565,8 @@ setup_peer_client_service() {
         # 設定 peer，包含 Endpoint，透過本地 phantun client 將流量轉發出去
         wg set "$WG_INTERFACE" peer "$remote_public_key" \
             allowed-ips "$ALLOWED_IPS" \
-            endpoint "$CLIENT_ENDPOINT"
+            endpoint "$CLIENT_ENDPOINT" \
+            persistent-keepalive 25
         log "已將 '$SERVER_NAME' 作為 peer 新增至 '$WG_INTERFACE' 介面。"
         wg-quick save "$WG_INTERFACE"
 
