@@ -246,16 +246,13 @@ get_user_input() {
         while true; do
             read -rp "請輸入 WireGuard 介面名稱 [預設: wg0]: " -e -i "wg0" WG_INTERFACE < /dev/tty
             if [ -e "/sys/class/net/$WG_INTERFACE" ]; then
-                warn "介面 '$WG_INTERFACE' 已存在。您是否要移除它並繼續設定？"
+                warn "介面 '$WG_INTERFACE' 已存在。您是否要移除它重新設定？"
                 warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務。"
                 local choice
                 read -rp "確定要移除並重建嗎？ [y/N]: " -e choice < /dev/tty
                 if [[ "$choice" =~ ^[Yy]$ ]]; then
                     cleanup_existing_interface "$WG_INTERFACE"
                     break
-                else
-                    warn "操作已取消。請選擇一個不同的介面名稱。"
-                    WG_INTERFACE="" # 重置以便循環
                 fi
             else
                 break
@@ -264,14 +261,12 @@ get_user_input() {
     else
         log "使用參數提供的 WireGuard 介面名稱: $WG_INTERFACE"
         if [ -e "/sys/class/net/$WG_INTERFACE" ]; then
-            warn "參數指定的介面 '$WG_INTERFACE' 已存在。您是否要移除它並繼續設定？"
+            warn "參數指定的介面 '$WG_INTERFACE' 已存在。您是否要移除它重新設定？"
             warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務。"
             local choice
             read -rp "確定要移除並重建嗎？ [y/N]: " -e choice < /dev/tty
             if [[ "$choice" =~ ^[Yy]$ ]]; then
                 cleanup_existing_interface "$WG_INTERFACE"
-            else
-                error "操作已取消。請指定一個不同的介面名稱，或移除參數以進入完整互動模式。"
             fi
         fi
     fi
@@ -289,7 +284,6 @@ get_user_input() {
         done
     else
         log "使用參數提供的 WireGuard 內部 UDP 埠: $WG_PORT"
-        if ss -lnu | grep -q ":$WG_PORT\b"; then error "UDP 埠 $WG_PORT 已被佔用。"; fi
     fi
 
     # --- 其他設定 ---
@@ -326,19 +320,28 @@ setup_firewall() {
 generate_server_configs() {
     log "正在產生伺服器設定檔..."
     # WireGuard 設定
-    local WG_DIR="/etc/wireguard"
-    mkdir -p "$WG_DIR"
-    cd "$WG_DIR"
-    wg genkey | tee "$WG_INTERFACE"_private.key | wg pubkey > "$WG_INTERFACE"_public.key
-    chmod 600 "$WG_INTERFACE"_private.key
-    SERVER_PRIVATE_KEY=$(cat "$WG_INTERFACE"_private.key)
-    SERVER_PUBLIC_KEY=$(cat "$WG_INTERFACE"_public.key)
 
-    echo "[Interface]
+    local choice
+    choice='N'
+    if ss -lnu | grep -q ":$WG_PORT\b"; then 
+        warn "UDP 埠 $WG_PORT 已被佔用。"; 
+        read -rp "是否要略過 WireGuard 的設定？ [Y/n]: " -e choice < /dev/tty
+    fi
+    if [[ "$choice" =~ ^[Nn]$ ]]; then
+        local WG_DIR="/etc/wireguard"
+        mkdir -p "$WG_DIR"
+        cd "$WG_DIR"
+        wg genkey | tee "$WG_INTERFACE"_private.key | wg pubkey > "$WG_INTERFACE"_public.key
+        chmod 600 "$WG_INTERFACE"_private.key
+        SERVER_PRIVATE_KEY=$(cat "$WG_INTERFACE"_private.key)
+        SERVER_PUBLIC_KEY=$(cat "$WG_INTERFACE"_public.key)
+
+        echo "[Interface]
 Address = $WG_SUBNET
 ListenPort = $WG_PORT
 PrivateKey = $SERVER_PRIVATE_KEY
 SaveConfig = true" > "$WG_DIR/$WG_INTERFACE.conf"
+    fi
 
     # Phantun 設定
     local PHANTUN_DIR="/etc/phantun"
