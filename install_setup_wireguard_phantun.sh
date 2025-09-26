@@ -271,19 +271,25 @@ get_user_input() {
         fi
     fi
 
+    SKIP_WG_SETTING = false
     # --- WireGuard 內部 UDP 埠 ---
     if [ -z "$WG_PORT" ]; then
         while true; do
             read -rp "請輸入 WireGuard 內部監聽的 UDP 埠 [預設: 5004]: " -e -i "5004" WG_PORT < /dev/tty
             if ss -lnu | grep -q ":$WG_PORT\b"; then
                 warn "UDP 埠 $WG_PORT 已被佔用，請選擇其他埠。"
-                WG_PORT="" # 重置以便循環
+                local choice
+                read -rp "或是略過 WireGuard 的設定？ [N/y]: " -e choice < /dev/tty
+                if [[ "$choice" =~ ^[Yy]$ ]]; then
+                    SKIP_WG_SETTING=true
+                    break
+                else
+                    WG_PORT="" # 重置以便循環
+                fi
             else
                 break
             fi
         done
-    else
-        log "使用參數提供的 WireGuard 內部 UDP 埠: $WG_PORT"
     fi
 
     # --- 其他設定 ---
@@ -322,12 +328,7 @@ generate_server_configs() {
     # WireGuard 設定
 
     local choice
-    choice='N'
-    if ss -lnu | grep -q ":$WG_PORT\b"; then 
-        warn "UDP 埠 $WG_PORT 已被佔用。"; 
-        read -rp "是否要略過 WireGuard 的設定？ [Y/n]: " -e choice < /dev/tty
-    fi
-    if [[ "$choice" =~ ^[Nn]$ ]]; then
+    if [ "$SKIP_WG_SETTING" = false ]; then
         local WG_DIR="/etc/wireguard"
         mkdir -p "$WG_DIR"
         cd "$WG_DIR"
