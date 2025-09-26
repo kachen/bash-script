@@ -506,9 +506,9 @@ setup_peer_client_service() {
                 error "Phantun Client 網段超出限制！"
             fi
             default_tun_subnet="192.168.200.$new_last/30"
-            new_last=$((max_last + 1))
+            new_last=$((max_last + 4))
             default_tun_local_ip="192.168.200.$new_last"
-            new_last=$((max_last + 1))
+            new_last=$((max_last + 5))
             default_tun_peer_ip="192.168.200.$new_last"
         fi
 
