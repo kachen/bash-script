@@ -520,9 +520,13 @@ setup_peer_client_service() {
 --local 127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT
 --remote $SERVER_HOST:15004" > "$PHANTUN_CONF_PATH"
         log "正在於 $PHANTUN_RULE_UP_PATH 建立客戶端防火牆啟動規則"
-        echo "-t nat -A POSTROUTING -s $default_tun_subnet -j MASQUERADE" > "$PHANTUN_RULE_UP_PATH"
+        echo "*nat
+-A POSTROUTING -s $default_tun_subnet -j MASQUERADE
+COMMIT" > "$PHANTUN_RULE_UP_PATH"
         log "正在於 $PHANTUN_RULE_DOWN_PATH 建立客戶端防火牆關閉規則"
-        echo "-t nat -D POSTROUTING -s $default_tun_subnet -j MASQUERADE" > "$PHANTUN_RULE_DOWN_PATH"
+        echo "*nat
+-D POSTROUTING -s $default_tun_subnet -j MASQUERADE
+COMMIT" > "$PHANTUN_RULE_DOWN_PATH"
         log "正在重新載入 systemd 並啟動 phantun-client@$SERVER_NAME.service..."
         systemctl daemon-reload
         systemctl enable --now "phantun-client@$SERVER_NAME.service"
