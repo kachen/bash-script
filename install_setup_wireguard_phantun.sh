@@ -271,7 +271,7 @@ get_user_input() {
         fi
     fi
 
-    SKIP_WG_SETTING = false
+    SKIP_WG_SETTING=false
     # --- WireGuard 內部 UDP 埠 ---
     if [ -z "$WG_PORT" ]; then
         while true; do
