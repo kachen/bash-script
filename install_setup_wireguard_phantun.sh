@@ -372,15 +372,15 @@ EOF
     log "正在於 /etc/systemd/system/phantun-client@.service 建立服務檔案"
     cat > "/etc/systemd/system/phantun-client@.service" << "EOF"
 [Unit]
-Description=Phantun Client (Optional)
+Description=Phantun Client
 After=network.target
 
 [Service]
 Type=simple
 User=root
-ExecStartPre=/usr/sbin/iptables -t nat -A POSTROUTING -s 192.168.200.0/30 -j MASQUERADE
+ExecStartPre=/usr/sbin/iptables-restore --noflush /etc/phantun/%i_up.rules
 ExecStart=/bin/bash -c '/usr/local/bin/phantun_client $(</etc/phantun/%i.client)'
-ExecStopPost=/usr/sbin/iptables -t nat -D POSTROUTING -s 192.168.200.0/30 -j MASQUERADE
+ExecStopPost=/usr/sbin/iptables-restore --noflush /etc/phantun/%i_down.rules
 Restart=always
 RestartSec=3
 
@@ -432,6 +432,8 @@ setup_peer_client_service() {
     local overwrite_existing_config=true
     local PHANTUN_DIR="/etc/phantun"
     local PHANTUN_CONF_PATH="$PHANTUN_DIR/$SERVER_NAME.client"
+    local PHANTUN_RULE_UP_PATH="$PHANTUN_DIR/${SERVER_NAME}_up.rules"
+    local PHANTUN_RULE_DOWN_PATH="$PHANTUN_DIR/${SERVER_NAME}_down.rules"
     local PHANTUN_CLIENT_LOCAL_PORT
 
     if [ -f "$PHANTUN_CONF_PATH" ]; then
@@ -462,6 +464,12 @@ setup_peer_client_service() {
         fourth_octet=$(echo "$SERVER_WG_IP" | cut -d '.' -f 4)
         local default_client_phantun_port
         default_client_phantun_port=$(printf "%d%03d" "$third_octet" "$fourth_octet")
+        local default_tun_subnet
+        local default_tun_local_ip
+        local default_tun_peer_ip
+        default_tun_subnet="192.168.200.0/30"
+        default_tun_local_ip="192.168.200.1"
+        default_tun_peer_ip="192.168.200.2"
 
         while true; do
             read -rp "請輸入連接 '$SERVER_NAME' 的 phantun_client 在本地監聽的 UDP 埠 [預設: $default_client_phantun_port]: " -e -i "$default_client_phantun_port" PHANTUN_CLIENT_LOCAL_PORT < /dev/tty
@@ -469,10 +477,48 @@ setup_peer_client_service() {
             warn "UDP 埠 $PHANTUN_CLIENT_LOCAL_PORT 已被佔用，請選擇其他埠。"
         done
 
+        max_last=-1
+
+        for f in "$PHANTUN_DIR"/*.client; do
+            [[ -e "$f" ]] || continue
+            ip=$(awk '/^--tun-local[[:space:]]+/ {print $2; exit}' "$f" 2>/dev/null || true)
+            [[ -n "${ip:-}" ]] || continue
+
+            IFS=. read -r o1 o2 o3 o4 <<<"$ip" || continue
+
+            # 基本合法性（0–255）
+            for o in "$o1" "$o2" "$o3" "$o4"; do
+                [[ "$o" =~ ^[0-9]+$ ]] && (( o>=0 && o<=255 )) || { ip=""; break; }
+            done
+            [[ -n "$ip" ]] || continue
+            if (( o4 > max_last )); then
+                max_last=$o4
+            fi
+        done
+
+        if (( max_last > 0 )); then
+            new_last=$((max_last + 3))
+            if (( new_last > 252 )); then
+                error "Phantun Client 網段超出限制！"
+            fi
+            default_tun_subnet="192.168.200.$new_last/30"
+            new_last=$((max_last + 1))
+            default_tun_local_ip="192.168.200.$new_last"
+            new_last=$((max_last + 1))
+            default_tun_peer_ip="192.168.200.$new_last"
+        fi
+
         # 建立客戶端 Phantun 設定檔
         log "正在於 $PHANTUN_CONF_PATH 建立客戶端設定檔"
-        echo "--local 127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT
+        echo "--tun tun_$SERVER_NAME
+--tun-local $default_tun_local_ip
+--tun-peer $default_tun_peer_ip
+--local 127.0.0.1:$PHANTUN_CLIENT_LOCAL_PORT
 --remote $SERVER_HOST:15004" > "$PHANTUN_CONF_PATH"
+        log "正在於 $PHANTUN_RULE_UP_PATH 建立客戶端防火牆啟動規則"
+        echo "-t nat -A POSTROUTING -s $default_tun_subnet -j MASQUERADE" > "$PHANTUN_RULE_UP_PATH"
+        log "正在於 $PHANTUN_RULE_DOWN_PATH 建立客戶端防火牆關閉規則"
+        echo "-t nat -D POSTROUTING -s $default_tun_subnet -j MASQUERADE" > "$PHANTUN_RULE_DOWN_PATH"
         log "正在重新載入 systemd 並啟動 phantun-client@$SERVER_NAME.service..."
         systemctl daemon-reload
         systemctl enable --now "phantun-client@$SERVER_NAME.service"
