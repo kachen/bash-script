@@ -271,7 +271,7 @@ get_user_input() {
         fi
     fi
 
-    SKIP_WG_SETTING=false
+    SKIP_WIREGUARD_SETTING=false
     # --- WireGuard 內部 UDP 埠 ---
     if [ -z "$WG_PORT" ]; then
         while true; do
@@ -281,7 +281,7 @@ get_user_input() {
                 local choice
                 read -rp "或是略過 WireGuard 的設定？ [N/y]: " -e choice < /dev/tty
                 if [[ "$choice" =~ ^[Yy]$ ]]; then
-                    SKIP_WG_SETTING=true
+                    SKIP_WIREGUARD_SETTING=true
                     break
                 else
                     WG_PORT="" # 重置以便循環
@@ -328,7 +328,7 @@ generate_server_configs() {
     # WireGuard 設定
 
     local choice
-    if [ "$SKIP_WG_SETTING" = false ]; then
+    if [ "$SKIP_WIREGUARD_SETTING" = false ]; then
         local WG_DIR="/etc/wireguard"
         mkdir -p "$WG_DIR"
         cd "$WG_DIR"
