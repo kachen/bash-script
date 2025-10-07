@@ -611,7 +611,6 @@ PersistentKeepalive = 25" > "${CLIENT_DIR}/wg.conf"
 
         candidate=-1
         for ((i=2; i<=253; i+=2)); do
-            log "${used[$i]+x}"
             if [[ -z "${used[$i]+x}" ]]; then
                 candidate=$i
                 break
