@@ -529,6 +529,8 @@ Address = ${default_wg_local_ip}/31
 ListenPort = $WG_PORT
 PrivateKey = $SERVER_PRIVATE_KEY
 Table = off
+PostUp = /sbin/iptables -t nat -A POSTROUTING -s ${default_wg_local_ip}/31 -j MASQUERADE
+PostDown =/sbin/iptables -t nat -D POSTROUTING -s ${default_wg_local_ip}/31 -j MASQUERADE
 [Peer]
 PublicKey = $CLIENT_PUBLIC_KEY
 AllowedIPs = 0.0.0.0/0" > "$WG_DIR/$WG_INTERFACE.conf"
@@ -543,6 +545,8 @@ AllowedIPs = 0.0.0.0/0" > "$WG_DIR/$WG_INTERFACE.conf"
 Address = ${default_wg_peer_ip}/31
 PrivateKey = $CLIENT_PRIVATE_KEY
 Table = off
+PostUp = /sbin/iptables -t nat -A POSTROUTING -s ${default_wg_local_ip}/31 -j MASQUERADE
+PostDown =/sbin/iptables -t nat -D POSTROUTING -s ${default_wg_local_ip}/31 -j MASQUERADE
 [Peer]
 PublicKey = $SERVER_PUBLIC_KEY
 AllowedIPs = 0.0.0.0/0
