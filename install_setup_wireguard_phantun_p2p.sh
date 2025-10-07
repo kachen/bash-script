@@ -475,7 +475,7 @@ setup_wg_interface_service() {
         candidate=-1
         for ((i=2; i<=253; i+=2)); do
             log "${used[$i+1]+x}"
-            if [[ -z "${used[$i]+x}" ]] && [[ -z "${used[$i+1]+x}" ]]; then
+            if [[ -z "${used[$i]+x}" ]] || [[ -z "${used[$i+1]+x}" ]]; then
                 candidate=$i
                 break
             fi
