@@ -424,14 +424,14 @@ setup_wg_interface_service() {
     if [ "$overwrite_wireguard_config" = true ]; then
         # 本機讀取
         mapfile -t local_addrs < <(
-        awk -F'[ =/]+' '/^Address[[:space:]]*=/{print $3}' /etc/wireguard/*.conf 2>/dev/null || true
+        awk -F'[ =/]+' '/^Address[[:space:]]*=/{print $2}' /etc/wireguard/*.conf 2>/dev/null || true
         )
 
         if [ -n "$CLIENT_PASSWORD" ]; then
             # 如果提供了密碼，則對 ssh 和 scp 都使用 sshpass
             log "偵測到密碼，將使用 sshpass 進行認證。"
             if remote_out=$(sshpass -p "$CLIENT_PASSWORD" ssh -p "$CLIENT_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$CLIENT_HOST" \
-                "awk -F'[ =/]+' '/^Address[[:space:]]*=/{print \$3}' /etc/wireguard/*.conf 2>/dev/null || true" ); then
+                "awk -F'[ =/]+' '/^Address[[:space:]]*=/{print \$2}' /etc/wireguard/*.conf 2>/dev/null || true" ); then
                 if [[ -n "$remote_out" ]]; then
                     mapfile -t remote_addrs <<<"$remote_out"
                     log "✅ 成功讀取遠端 $CLIENT_HOST 的 conf"
@@ -446,7 +446,7 @@ setup_wg_interface_service() {
         else
             # 如果未提供密碼，則假定使用 SSH 金鑰認證
             if remote_out=$(ssh -p "$CLIENT_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$CLIENT_HOST" \
-                "awk -F'[ =/]+' '/^Address[[:space:]]*=/{print \$3}' /etc/wireguard/*.conf 2>/dev/null || true" ); then
+                "awk -F'[ =/]+' '/^Address[[:space:]]*=/{print \$2}' /etc/wireguard/*.conf 2>/dev/null || true" ); then
                 if [[ -n "$remote_out" ]]; then
                     mapfile -t remote_addrs <<<"$remote_out"
                     log "✅ 成功讀取遠端 $CLIENT_HOST 的 conf"
@@ -475,7 +475,7 @@ setup_wg_interface_service() {
         candidate=-1
         for ((i=2; i<=253; i+=2)); do
             log "${used[$i+1]+x}"
-            if [[ -z "${used[$i]+x}" ]] || [[ -z "${used[$i+1]+x}" ]]; then
+            if [[ -z "${used[$i]+x}" ]] && [[ -z "${used[$i+1]+x}" ]]; then
                 candidate=$i
                 break
             fi
