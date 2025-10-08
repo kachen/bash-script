@@ -422,6 +422,7 @@ setup_wg_interface_service() {
     declare -A used=()
     declare -A local_addrs=()
     declare -A remote_addrs=()
+    declare -A addresses=()
 
     if [ "$overwrite_wireguard_config" = true ]; then
         # 本機讀取
@@ -436,6 +437,7 @@ setup_wg_interface_service() {
             awk -F'[ =/]+' '/^Address[[:space:]]*=/{print $2}' "$WG_DIR"/*.conf 2>/dev/null || true
             )
             log "✅  本機讀到 ${#local_addrs[@]} 筆 Wireguard Address"
+            addresses+=("${local_addrs[@]}")
         fi
         if [ -n "$CLIENT_PASSWORD" ]; then
             # 如果提供了密碼，則對 ssh 和 scp 都使用 sshpass
@@ -445,6 +447,7 @@ setup_wg_interface_service() {
                 if [[ -n "$remote_out" ]]; then
                     mapfile -t remote_addrs <<<"$remote_out"
                     log "✅ 成功讀取遠端 $CLIENT_HOST 的 ${#remote_addrs[@]} 筆 Wireguard Address"
+                    addresses+=("${remote_addrs[@]}")
                 else
                     log "⚠️ 遠端 $CLIENT_HOST 沒有任何 Wireguard Address"
                 fi
@@ -458,6 +461,7 @@ setup_wg_interface_service() {
                 if [[ -n "$remote_out" ]]; then
                     mapfile -t remote_addrs <<<"$remote_out"
                     log "✅ 成功讀取遠端 $CLIENT_HOST 的 ${#remote_addrs[@]} 筆 Wireguard Address"
+                    addresses+=("${remote_addrs[@]}")
                 else
                     log "⚠️ 遠端 $CLIENT_HOST 沒有任何 Wireguard Address"
                 fi
@@ -466,7 +470,6 @@ setup_wg_interface_service() {
             fi
         fi
 
-        addresses=("${remote_addrs[@]}" "${local_addrs[@]}")
         for ip in "${addresses[@]}"; do
             IFS=. read -r o1 o2 o3 o4 <<<"$ip" || continue
 
