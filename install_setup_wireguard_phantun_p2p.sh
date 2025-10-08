@@ -423,7 +423,7 @@ setup_wg_interface_service() {
 
     if [ "$overwrite_wireguard_config" = true ]; then
         # 本機讀取
-        local_addrs=()
+        local local_addrs=()
         local conf_files=()
         shopt -s nullglob
         conf_files=("$WG_DIR"/*.conf)
@@ -442,7 +442,7 @@ setup_wg_interface_service() {
             log "✅  本機讀到 ${#local_addrs[@]} 筆 Address"
         fi
         if [ -n "$CLIENT_PASSWORD" ]; then
-            remote_out=()
+            local remote_out=()
             # 如果提供了密碼，則對 ssh 和 scp 都使用 sshpass
             log "偵測到密碼，將使用 sshpass 進行認證。"
             if remote_out=$(sshpass -p "$CLIENT_PASSWORD" ssh -p "$CLIENT_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$CLIENT_HOST" \
