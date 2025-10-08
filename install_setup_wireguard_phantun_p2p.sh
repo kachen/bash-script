@@ -410,9 +410,10 @@ setup_wg_interface_service() {
     local CLIENT_DIR="$CLIENT_PACKAGE_DIR/$CLIENT_NAME"
     if [ -d "$CLIENT_DIR" ]; then
         warn "目錄 '$CLIENT_DIR' 已存在，將會覆蓋其中的檔案。"
-    else
-        mkdir -p "$CLIENT_DIR"
+        rm -rf "$CLIENT_DIR"
     fi
+    mkdir -p "$CLIENT_DIR"
+
     # --- 其他設定 ---
     local WG_DIR="/etc/wireguard"
     local default_wg_local_ip
