@@ -424,24 +424,20 @@ setup_wg_interface_service() {
     if [ "$overwrite_wireguard_config" = true ]; then
         # 本機讀取
         local local_addrs=()
+        local remote_addrs=()
         local conf_files=()
         shopt -s nullglob
         conf_files=("$WG_DIR"/*.conf)
         shopt -u nullglob
         if ((${#conf_files[@]} == 0)); then
-            warn "⚠️  本機沒有任何 .conf 檔案於 $WG_DIR"
+            log "⚠️  本機沒有任何 Wireguard Address"
         else
             mapfile -t local_addrs < <(
             awk -F'[ =/]+' '/^Address[[:space:]]*=/{print $2}' "$WG_DIR"/*.conf 2>/dev/null || true
             )
-        fi
-        if ((${#local_addrs[@]} == 0)); then
-            log "⚠️  本機有 .conf，但沒有任何 Address"
-        else
-            log "✅  本機讀到 ${#local_addrs[@]} 筆 Address"
+            log "✅  本機讀到 ${#local_addrs[@]} 筆 Wireguard Address"
         fi
         if [ -n "$CLIENT_PASSWORD" ]; then
-            local remote_out=()
             # 如果提供了密碼，則對 ssh 和 scp 都使用 sshpass
             log "偵測到密碼，將使用 sshpass 進行認證。"
             if remote_out=$(sshpass -p "$CLIENT_PASSWORD" ssh -p "$CLIENT_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$CLIENT_HOST" \
@@ -450,7 +446,7 @@ setup_wg_interface_service() {
                     mapfile -t remote_addrs <<<"$remote_out"
                     log "✅ 成功讀取遠端 $CLIENT_HOST 的 ${#remote_out[@]} 筆 Address"
                 else
-                    log "⚠️ 遠端 $CLIENT_HOST 有 conf，但沒有 Address"
+                    log "⚠️ 遠端 $CLIENT_HOST 沒有任何 Wireguard Address"
                 fi
             else
                 error "❌ 無法讀取遠端 $CLIENT_HOST 的 conf。請檢查密碼、主機或網路連線。"
@@ -463,11 +459,9 @@ setup_wg_interface_service() {
                     mapfile -t remote_addrs <<<"$remote_out"
                     log "✅ 成功讀取遠端 $CLIENT_HOST 的 conf"
                 else
-                    remote_addrs=()
-                    log "⚠️ 遠端 $CLIENT_HOST 有 conf，但沒有 Address"
+                    log "⚠️ 遠端 $CLIENT_HOST 沒有任何 Wireguard Address"
                 fi
             else
-                remote_addrs=()
                 error "❌ 無法讀取遠端 $CLIENT_HOST 的 conf。請確認 SSH 金鑰是否已正確設定，或嘗試使用密碼參數 --client-password。"
             fi
         fi
