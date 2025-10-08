@@ -543,7 +543,8 @@ PostUp = /sbin/iptables -t nat -A POSTROUTING -s ${default_wg_local_ip}/31 -j MA
 PostDown =/sbin/iptables -t nat -D POSTROUTING -s ${default_wg_local_ip}/31 -j MASQUERADE
 [Peer]
 PublicKey = $CLIENT_PUBLIC_KEY
-AllowedIPs = 0.0.0.0/0" > "$WG_DIR/$WG_INTERFACE.conf"
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25" > "$WG_DIR/$WG_INTERFACE.conf"
 
         # 重新載入並啟動
         systemctl daemon-reload
