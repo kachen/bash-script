@@ -420,15 +420,26 @@ setup_wg_interface_service() {
     default_wg_local_ip="192.168.6.2"
     default_wg_peer_ip="192.168.6.3"
     declare -A used=()
-    declare -A local_addrs=()
-    declare -A remote_addrs=()
 
     if [ "$overwrite_wireguard_config" = true ]; then
         # 本機讀取
-        mapfile -t local_addrs < <(
-        awk -F'[ =/]+' '/^Address[[:space:]]*=/{print $2}' /etc/wireguard/*.conf 2>/dev/null || true
-        )
-
+        local conf_files=()
+        shopt -s nullglob
+        conf_files=("$WG_DIR"/*.conf)
+        shopt -u nullglob
+        if ((${#conf_files[@]} == 0)); then
+            warn "⚠️  本機沒有任何 .conf 檔案於 $WG_DIR"
+        else
+            mapfile -t local_addrs < <(
+            awk -F'[ =/]+' '/^Address[[:space:]]*=/{print $2}' "$WG_DIR"/*.conf 2>/dev/null || true
+            )
+        fi
+        if ((${#local_addrs[@]} == 0)); then
+            local_addrs=()
+            log "⚠️  本機有 .conf，但沒有任何 Address"
+        else
+            log "✅  本機讀到 ${#local_addrs[@]} 筆 Address"
+        fi
         if [ -n "$CLIENT_PASSWORD" ]; then
             # 如果提供了密碼，則對 ssh 和 scp 都使用 sshpass
             log "偵測到密碼，將使用 sshpass 進行認證。"
@@ -436,7 +447,7 @@ setup_wg_interface_service() {
                 "awk -F'[ =/]+' '/^Address[[:space:]]*=/{print \$2}' /etc/wireguard/*.conf 2>/dev/null || true" ); then
                 if [[ -n "$remote_out" ]]; then
                     mapfile -t remote_addrs <<<"$remote_out"
-                    log "✅ 成功讀取遠端 $CLIENT_HOST 的 conf"
+                    log "✅ 成功讀取遠端 $CLIENT_HOST 的 ${#remote_out[@]} 筆 Address"
                 else
                     remote_addrs=()
                     log "⚠️ 遠端 $CLIENT_HOST 有 conf，但沒有 Address"
