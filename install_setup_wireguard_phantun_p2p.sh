@@ -713,7 +713,7 @@ COMMIT" > "$PHANTUN_DIR/${CLIENT_NAME}_server_down.rules"
             if [ -n "$CLIENT_PASSWORD" ]; then
                 # 如果提供了密碼，則對 ssh 和 scp 都使用 sshpass
                 log "偵測到密碼，將使用 sshpass 進行認證。"
-                if sshpass -p "${CLIENT_PASSWORD}" ssh -p "$CLIENT_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=5 "${CLIENT_HOST}" "mkdir -p '${remote_path}'" && \
+                if sshpass -p "${CLIENT_PASSWORD}" ssh -p "$CLIENT_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=5 "${CLIENT_HOST}" "rm -rf '${remote_path}'; mkdir -p '${remote_path}'" && \
                     sshpass -p "${CLIENT_PASSWORD}" scp -P "$CLIENT_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -r ${CLIENT_DIR}/* "${CLIENT_HOST}:${remote_path}/"; then
                     log "✅ 檔案成功拷貝到遠端設備。"
                 else
@@ -721,7 +721,7 @@ COMMIT" > "$PHANTUN_DIR/${CLIENT_NAME}_server_down.rules"
                 fi
             else
                 # 如果未提供密碼，則假定使用 SSH 金鑰認證
-                if ssh -p "$CLIENT_PORT" -o ConnectTimeout=5 "${CLIENT_HOST}" "mkdir -p '${remote_path}'" && \
+                if ssh -p "$CLIENT_PORT" -o ConnectTimeout=5 "${CLIENT_HOST}" "rm -rf '${remote_path}'; mkdir -p '${remote_path}'" && \
                     scp -P "$CLIENT_PORT" -o ConnectTimeout=5 -r ${CLIENT_DIR}/* "${CLIENT_HOST}:${remote_path}/"; then
                     log "✅ 檔案成功拷貝到遠端設備。"
                 else
