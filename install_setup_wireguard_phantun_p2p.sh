@@ -436,7 +436,6 @@ setup_wg_interface_service() {
             )
         fi
         if ((${#local_addrs[@]} == 0)); then
-            local_addrs=()
             log "⚠️  本機有 .conf，但沒有任何 Address"
         else
             log "✅  本機讀到 ${#local_addrs[@]} 筆 Address"
@@ -451,11 +450,9 @@ setup_wg_interface_service() {
                     mapfile -t remote_addrs <<<"$remote_out"
                     log "✅ 成功讀取遠端 $CLIENT_HOST 的 ${#remote_out[@]} 筆 Address"
                 else
-                    remote_addrs=()
                     log "⚠️ 遠端 $CLIENT_HOST 有 conf，但沒有 Address"
                 fi
             else
-                remote_addrs=()
                 error "❌ 無法讀取遠端 $CLIENT_HOST 的 conf。請檢查密碼、主機或網路連線。"
             fi
         else
