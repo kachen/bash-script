@@ -469,31 +469,33 @@ setup_wg_interface_service() {
             ${local_addrs+"${local_addrs[@]}"}     # local_addrs 未宣告 → 這段不會展開
             ${remote_addrs+"${remote_addrs[@]}"}   # 同上
         )
-        for ip in "${addresses[@]}"; do
-            IFS=. read -r o1 o2 o3 o4 <<<"$ip" || continue
+        if ((${#addresses[@]} > 0)); then
+            for ip in "${addresses[@]}"; do
+                IFS=. read -r o1 o2 o3 o4 <<<"$ip" || continue
 
-            # 基本合法性（0–255）
-            for o in "$o1" "$o2" "$o3" "$o4"; do
-                [[ "$o" =~ ^[0-9]+$ ]] && (( o>=0 && o<=255 )) || { ip=""; break; }
+                # 基本合法性（0–255）
+                for o in "$o1" "$o2" "$o3" "$o4"; do
+                    [[ "$o" =~ ^[0-9]+$ ]] && (( o>=0 && o<=255 )) || { ip=""; break; }
+                done
+                [[ -n "$ip" ]] || continue
+                used[$o4]=1
             done
-            [[ -n "$ip" ]] || continue
-            used[$o4]=1
-        done
 
-        candidate=-1
-        for ((i=2; i<=253; i+=2)); do
-            if [[ -z "${used[$i]+x}" ]] && [[ -z "${used[$i+1]+x}" ]]; then
-                candidate=$i
-                break
+            candidate=-1
+            for ((i=2; i<=253; i+=2)); do
+                if [[ -z "${used[$i]+x}" ]] && [[ -z "${used[$i+1]+x}" ]]; then
+                    candidate=$i
+                    break
+                fi
+            done
+
+            if (( candidate < 0 )); then
+                error "WireGuard 網段超出限制！"
+            else
+                default_wg_local_ip="192.168.6.$candidate"
+                candidate=$((candidate+1))
+                default_wg_peer_ip="192.168.6.$candidate"
             fi
-        done
-
-        if (( candidate < 0 )); then
-            error "WireGuard 網段超出限制！"
-        else
-            default_wg_local_ip="192.168.6.$candidate"
-            candidate=$((candidate+1))
-            default_wg_peer_ip="192.168.6.$candidate"
         fi
 
         local third_octet
