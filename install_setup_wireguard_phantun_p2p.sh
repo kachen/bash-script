@@ -444,7 +444,7 @@ setup_wg_interface_service() {
                 "awk -F'[ =/]+' '/^Address[[:space:]]*=/{print \$2}' /etc/wireguard/*.conf 2>/dev/null || true" ); then
                 if [[ -n "$remote_out" ]]; then
                     mapfile -t remote_addrs <<<"$remote_out"
-                    log "✅ 成功讀取遠端 $CLIENT_HOST 的 ${#remote_out[@]} 筆 Address"
+                    log "✅ 成功讀取遠端 $CLIENT_HOST 的 ${#remote_addrs[@]} 筆 Wireguard Address"
                 else
                     log "⚠️ 遠端 $CLIENT_HOST 沒有任何 Wireguard Address"
                 fi
@@ -457,7 +457,7 @@ setup_wg_interface_service() {
                 "awk -F'[ =/]+' '/^Address[[:space:]]*=/{print \$2}' /etc/wireguard/*.conf 2>/dev/null || true" ); then
                 if [[ -n "$remote_out" ]]; then
                     mapfile -t remote_addrs <<<"$remote_out"
-                    log "✅ 成功讀取遠端 $CLIENT_HOST 的 conf"
+                    log "✅ 成功讀取遠端 $CLIENT_HOST 的 ${#remote_addrs[@]} 筆 Wireguard Address"
                 else
                     log "⚠️ 遠端 $CLIENT_HOST 沒有任何 Wireguard Address"
                 fi
@@ -466,7 +466,7 @@ setup_wg_interface_service() {
             fi
         fi
 
-        addresses=("${local_addrs[@]}" "${remote_addrs[@]}")
+        addresses=("${remote_addrs[@]}" "${local_addrs[@]}")
         for ip in "${addresses[@]}"; do
             IFS=. read -r o1 o2 o3 o4 <<<"$ip" || continue
 
