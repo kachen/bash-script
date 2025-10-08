@@ -424,7 +424,7 @@ setup_wg_interface_service() {
     if [ "$overwrite_wireguard_config" = true ]; then
         # 本機讀取
         mapfile -t local_addrs < <(
-        awk -F'[ =/]+' '/^Address[[:space:]]*=/{print $2}' /etc/wireguard/*.conf 2>/dev/null
+        awk -F'[ =/]+' '/^Address[[:space:]]*=/{print $2}' /etc/wireguard/*.conf 2>/dev/null || ''
         )
 
         if [ -n "$CLIENT_PASSWORD" ]; then
