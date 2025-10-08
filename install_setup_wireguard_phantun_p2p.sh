@@ -420,11 +420,11 @@ setup_wg_interface_service() {
     default_wg_local_ip="192.168.6.2"
     default_wg_peer_ip="192.168.6.3"
     declare -A used=()
+    declare -a local_addrs=()
+    declare -a remote_addrs=()
 
     if [ "$overwrite_wireguard_config" = true ]; then
         # 本機讀取
-        local local_addrs=()
-        local remote_addrs=()
         local conf_files=()
         shopt -s nullglob
         conf_files=("$WG_DIR"/*.conf)
