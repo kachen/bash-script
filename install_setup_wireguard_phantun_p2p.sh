@@ -376,7 +376,7 @@ setup_wg_interface_service() {
             read -rp "請輸入 WireGuard 介面名稱 [預設: wg_${CLIENT_NAME}]: " -e -i "wg_${CLIENT_NAME}" WG_INTERFACE < /dev/tty
             if [ -e "/sys/class/net/$WG_INTERFACE" ]; then
                 warn "介面 '$WG_INTERFACE' 已存在。您是否要移除它重新設定？"
-                warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務。"
+                warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務，設定雙向連接時請略過此步驟。"
                 local choice
                 read -rp "確定要移除並重建嗎？ [y/N]: " -e choice < /dev/tty
                 if [[ "$choice" =~ ^[Yy]$ ]]; then
@@ -394,7 +394,7 @@ setup_wg_interface_service() {
         log "使用參數提供的 WireGuard 介面名稱: $WG_INTERFACE"
         if [ -e "/sys/class/net/$WG_INTERFACE" ]; then
             warn "參數指定的介面 '$WG_INTERFACE' 已存在。您是否要移除它重新設定？"
-            warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務。"
+            warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務，設定雙向連接時請略過此步驟。"
             local choice
             read -rp "確定要移除並重建嗎？ [y/N]: " -e choice < /dev/tty
             if [[ "$choice" =~ ^[Yy]$ ]]; then
@@ -772,7 +772,7 @@ setup_peer_client_service() {
             read -rp "請輸入 WireGuard 介面名稱 [預設: wg_${SERVER_NAME}]: " -e -i "wg_${SERVER_NAME}" WG_INTERFACE < /dev/tty
             if [ -e "/sys/class/net/$WG_INTERFACE" ]; then
                 warn "介面 '$WG_INTERFACE' 已存在。您是否要移除它重新設定？"
-                warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務。"
+                warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務，設定雙向連接時請略過此步驟。"
                 local choice
                 read -rp "確定要移除並重建嗎？ [y/N]: " -e choice < /dev/tty
                 if [[ "$choice" =~ ^[Yy]$ ]]; then
@@ -790,7 +790,7 @@ setup_peer_client_service() {
         log "使用參數提供的 WireGuard 介面名稱: $WG_INTERFACE"
         if [ -e "/sys/class/net/$WG_INTERFACE" ]; then
             warn "參數指定的介面 '$WG_INTERFACE' 已存在。您是否要移除它重新設定？"
-            warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務。"
+            warn "警告：這將會刪除所有與 '$WG_INTERFACE' 相關的設定檔和服務，設定雙向連接時請略過此步驟。"
             local choice
             read -rp "確定要移除並重建嗎？ [y/N]: " -e choice < /dev/tty
             if [[ "$choice" =~ ^[Yy]$ ]]; then
