@@ -520,6 +520,10 @@ setup_wg_interface_service() {
             done
         fi
 
+        if [ -z "$WG_MTU" ]; then
+            read -rp "請輸入 WireGuard 的 MTU 大小 [預設: 1428]: " -e -i "1428" WG_MTU < /dev/tty
+        fi
+
         log "正在產生服務端主機設定檔..."
         # WireGuard 設定
 
@@ -540,7 +544,7 @@ setup_wg_interface_service() {
 Address = ${default_wg_local_ip}/31
 ListenPort = $WG_PORT
 PrivateKey = $SERVER_PRIVATE_KEY
-MTU = 1428
+MTU = $WG_MTU
 Table = off
 PostUp = /sbin/iptables -t nat -A POSTROUTING -s ${default_wg_local_ip}/31 -j MASQUERADE
 PostDown =/sbin/iptables -t nat -D POSTROUTING -s ${default_wg_local_ip}/31 -j MASQUERADE
@@ -558,7 +562,7 @@ PersistentKeepalive = 25" > "$WG_DIR/$WG_INTERFACE.conf"
         echo "[Interface]
 Address = ${default_wg_peer_ip}/31
 PrivateKey = $CLIENT_PRIVATE_KEY
-MTU = 1428
+MTU = $WG_MTU
 Table = off
 PostUp = /sbin/iptables -t nat -A POSTROUTING -s ${default_wg_local_ip}/31 -j MASQUERADE
 PostDown =/sbin/iptables -t nat -D POSTROUTING -s ${default_wg_local_ip}/31 -j MASQUERADE
@@ -956,6 +960,7 @@ main() {
     PUBLIC_IP=""
     NIC_PARAM=""
     WG_PORT=""
+    WG_MTU=""
     WG_INTERFACE=""
     PHANTUN_PORT=""
     SERVER_NAME=""
