@@ -18,7 +18,7 @@ set -euo pipefail
 
 # 預設參數（可被 CLI 覆寫）
 INTERFACES=""               # 若留空會自動偵測
-FREQUENCY="10s"             # systemd OnUnitActiveSec
+FREQUENCY="30s"             # systemd OnUnitActiveSec
 HANDSHAKE_TIMEOUT="0"     # MAX_NO_HANDSHAKE_SEC；0=不檢查握手
 UNINSTALL="false"
 ONLY_ACTIVE="false"
