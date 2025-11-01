@@ -271,7 +271,7 @@ for i in "${FILTERED_IFACES[@]}"; do
 done
 
 log "檢視 timers 狀態（僅 wg-health）："
-echo "  list-timers 'wg-health@*.timer' --all || true"
+echo "  systemctl list-timers 'wg-health@*.timer' --all || true"
 systemctl list-timers 'wg-health@*.timer' --all || true
 
 log "完成。手動觸發與檢視日誌："
