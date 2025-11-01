@@ -188,9 +188,9 @@ if ! ip link show dev "$IFACE" >/dev/null 2>&1; then
   exit 0
 fi
 
-STATE="$(cat /sys/class/net/$IFACE/operstate 2>/dev/null || echo unknown)"
-if [[ "$STATE" != "up" ]]; then
-  log "interface $IFACE state=$STATE; restarting wg-quick@$IFACE"
+STATE="$(cat /sys/class/net/$IFACE/carrier 2>/dev/null || echo unknown)"
+if [[ "$STATE" != "1" ]]; then
+  log "interface $IFACE carrier=$STATE; restarting wg-quick@$IFACE"
   systemctl restart "wg-quick@$IFACE"
   exit 0
 fi
@@ -271,6 +271,7 @@ for i in "${FILTERED_IFACES[@]}"; do
 done
 
 log "檢視 timers 狀態（僅 wg-health）："
+echo "  list-timers 'wg-health@*.timer' --all || true"
 systemctl list-timers 'wg-health@*.timer' --all || true
 
 log "完成。手動觸發與檢視日誌："
